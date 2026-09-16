@@ -17,10 +17,18 @@
 
         <!-- SIDEBAR -->
         <aside class="w-64 bg-gray-900 text-white flex flex-col hidden md:flex">
-
+            
+        @if(auth()->user()->role === 'admin')
             <div class="p-5 text-xl font-bold tracking-wider border-b border-gray-800">
                 PANEL ADMIN
             </div>
+            @endif
+
+             @if(auth()->user()->role === 'petugas')
+            <div class="p-5 text-xl font-bold tracking-wider border-b border-gray-800">
+                PANEL PETUGAS
+            </div>
+            @endif
 
             <nav class="flex-1 p-4 space-y-2">
 
