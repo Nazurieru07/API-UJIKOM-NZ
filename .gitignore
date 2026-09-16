@@ -1,0 +1,22 @@
+# Laravel
+backend/.env
+backend/vendor/
+backend/node_modules/
+backend/public/storage/
+backend/public/build/
+backend/public/hot/
+
+# Laravel cache/log
+backend/storage/logs/
+backend/storage/framework/cache/
+backend/storage/framework/sessions/
+backend/storage/framework/views/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
