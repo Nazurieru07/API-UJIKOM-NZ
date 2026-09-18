@@ -21,39 +21,85 @@
 
     <div class="flex items-center gap-3 w-full md:w-auto mt-4">
 
-        <!-- Form Search -->
-        <form action="{{ route('admin.user.index') }}" method="GET" class="flex w-full md:w-80">
+    <!-- Form Search dan Filter -->
+    <form action="{{ route('admin.user.index') }}" method="GET"
+        class="flex flex-wrap items-center gap-2 w-full">
 
-            <input
-                type="text"
-                name="search"
-                value="{{ request('search') }}"
-                placeholder="Cari nama, email, role..."
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <!-- Search -->
+<input
+    type="text"
+    name="search"
+    value="{{ request('search') }}"
+    placeholder="Cari nama, email, role..."
+    class="w-full md:w-64 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
 
-            <button
-                type="submit"
-                class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 text-sm font-semibold rounded-r-lg transition">
-                Cari
-            </button>
+<!-- Filter Role -->
+<select
+    name="role"
+    class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
 
-        </form>
+    <option value="">Semua Role</option>
 
-        @if(request('search'))
-            <a href="{{ route('admin.user.index') }}"
-                class="ml-2 bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-2 text-sm rounded-lg flex items-center transition"
-                title="Reset Pencarian">
-                Reset
-            </a>
-        @endif
+    <option value="admin"
+        {{ request('role') == 'admin' ? 'selected' : '' }}>
+        Admin
+    </option>
 
-        <!-- Tombol Tambah User -->
-        <a href="{{ route('admin.user.create') }}"
-            class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition whitespace-nowrap">
-            + Tambah User
+    <option value="petugas"
+        {{ request('role') == 'petugas' ? 'selected' : '' }}>
+        Petugas
+    </option>
+
+    <option value="peminjam"
+        {{ request('role') == 'peminjam' ? 'selected' : '' }}>
+        Peminjam
+    </option>
+
+</select>
+
+<!-- Filter Jenis Kelamin -->
+<select
+    name="jenis_kelamin"
+    class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+    <option value="">Semua Jenis Kelamin</option>
+
+    <option value="Laki-laki"
+        {{ request('jenis_kelamin') == 'Laki-laki' ? 'selected' : '' }}>
+        Laki-laki
+    </option>
+
+    <option value="Perempuan"
+        {{ request('jenis_kelamin') == 'Perempuan' ? 'selected' : '' }}>
+        Perempuan
+    </option>
+
+</select>
+
+<button
+    type="submit"
+    class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 text-sm font-semibold rounded-lg transition">
+    Cari
+</button>
+
+    </form>
+
+    <!-- Tombol Reset -->
+    @if(request('search') || request('role') || request('jenis_kelamin'))
+        <a href="{{ route('admin.user.index') }}"
+            class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-2 text-sm rounded-lg flex items-center transition whitespace-nowrap"
+            title="Reset Pencarian dan Filter">
+            Reset
         </a>
+    @endif
 
-    </div>
+    <!-- Tombol Tambah User -->
+    <a href="{{ route('admin.user.create') }}"
+        class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition whitespace-nowrap">
+        + Tambah User
+    </a>
+
+</div>
 </div>
 
         <div class="overflow-x-auto">
@@ -65,6 +111,7 @@
                         <th class="py-3 px-4 border-b">Email</th>
                         <th class="py-3 px-4 border-b">Role / Hak Akses</th>
                         <th class="py-3 px-4 border-b">No. HP</th>
+                        <th class="py-3 px-4 border-b">Jenis Kelamin</th>
                         <th class="py-3 px-4 border-b">Aksi</th>
                     </tr>
                 </thead>
@@ -114,6 +161,22 @@
                             </td>
 
                             <td class="py-3 px-4 border-b">
+                            @if($user->jenis_kelamin == 'Laki-laki')
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                                    Laki-laki
+                                </span>
+                            @elseif($user->jenis_kelamin == 'Perempuan')
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-pink-100 text-pink-700">
+                                    Perempuan
+                                </span>
+                            @else
+                                <span class="text-gray-400">
+                                    -
+                                </span>
+                            @endif
+                        </td>
+
+                            <td class="py-3 px-4 border-b">
 
                                 <div class="flex items-center space-x-2">
 
@@ -123,20 +186,21 @@
                                         Edit
                                     </a>
 
-                                    <!-- Tombol Hapus -->
-                                    <form action="{{ route('admin.user.destroy', $user->id) }}"
-                                        method="POST"
-                                        onsubmit="return confirm('Yakin ingin menghapus user ini?')">
+                                    @if($user->id !== auth()->id())
+                    <!-- Tombol Hapus -->
+                    <form action="{{ route('admin.user.destroy', $user->id) }}"
+                        method="POST"
+                        onsubmit="return confirm('Yakin ingin menghapus user ini?')">
 
-                                        @csrf
-                                        @method('DELETE')
+                        @csrf
+                        @method('DELETE')
 
-                                        <button type="submit"
-                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition">
-                                            Hapus
-                                        </button>
-
-                                    </form>
+                        <button type="submit"
+                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition">
+                            Hapus
+                        </button>
+                    </form>
+                @endif
 
                                 </div>
 
@@ -146,9 +210,9 @@
                     @empty
 
                         <tr>
-                            <td colspan="6" class="py-4 text-center text-gray-500">
-                                Belum ada data pengguna.
-                            </td>
+                            <td colspan="7" class="py-4 text-center text-gray-500">
+                            Belum ada data pengguna.
+                        </td>
                         </tr>
 
                     @endforelse

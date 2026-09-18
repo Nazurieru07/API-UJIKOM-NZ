@@ -45,17 +45,21 @@ Route::post('/pengembalian/{id}/setujui', [AdminController::class, 'setujuiPenge
     Route::post('/pengembalian/{id}/tolak', [AdminController::class, 'tolakPengembalian'])
     ->name('pengembalian.reject');
 
+    //lOG_AKTIVITAS
+    Route::get('/log-aktivitas', [AdminController::class, 'indexLogAktivitas'])
+    ->name('log_aktivitas.index');
+
     //CRUD Peminjaman
     Route::get('/peminjaman', [AdminController::class, 'indexPeminjaman'])->name('peminjaman.index');
     Route::get('/peminjaman/create', [AdminController::class, 'createPeminjaman'])->name('peminjaman.create');
     Route::post('/peminjaman', [AdminController::class, 'storePeminjaman'])->name('peminjaman.store');
 
     // Search User & Alat untuk Form Peminjaman
-Route::get('/search/users', [AdminController::class, 'searchUser'])
-    ->name('search.users');
+    Route::get('/search/users', [AdminController::class, 'searchUser'])
+        ->name('search.users');
 
-Route::get('/search/alats', [AdminController::class, 'searchAlat'])
-    ->name('search.alats');
+    Route::get('/search/alats', [AdminController::class, 'searchAlat'])
+        ->name('search.alats');
 
     Route::put('/peminjaman/{id}/status', [AdminController::class, 'updateStatusPeminjaman'])->name('peminjaman.updateStatus');
     Route::delete('/peminjaman/{id}', [AdminController::class, 'destroyPeminjaman'])->name('peminjaman.destroy');

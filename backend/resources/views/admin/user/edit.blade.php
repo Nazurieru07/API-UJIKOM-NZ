@@ -88,14 +88,36 @@
                 class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
         </div>
 
-        <div class="flex justify-end space-x-2">
+        <div class="mb-6">
+    <label class="block text-gray-700 text-sm font-semibold mb-2">
+        Jenis Kelamin
+    </label>
 
-            <a href="{{ route('admin.user.index') }}"
-                class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg text-sm font-semibold transition">
-                Batal
-            </a>
+    <select
+        name="jenis_kelamin"
+        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
 
-            <div class="mb-6">
+        <option value="">-- Pilih Jenis Kelamin --</option>
+
+        <option value="Laki-laki"
+            {{ old('jenis_kelamin', $user->jenis_kelamin) == 'Laki-laki' ? 'selected' : '' }}>
+            Laki-laki
+        </option>
+
+        <option value="Perempuan"
+            {{ old('jenis_kelamin', $user->jenis_kelamin) == 'Perempuan' ? 'selected' : '' }}>
+            Perempuan
+        </option>
+
+    </select>
+
+    @error('jenis_kelamin')
+        <span class="text-red-500 text-xs">{{ $message }}</span>
+    @enderror
+</div>
+
+        <!-- Foto Profil -->
+<div class="mb-6">
     <label class="block text-gray-700 text-sm font-semibold mb-2">
         Foto Profil
         <span class="text-xs text-gray-400 font-normal">
@@ -123,15 +145,23 @@
     @error('foto_profile')
         <span class="text-red-500 text-xs">{{ $message }}</span>
     @enderror
-        </div>
+</div>
 
-            <button
-                type="submit"
-                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
-                Perbarui
-            </button>
+<!-- Tombol -->
+<div class="flex justify-end space-x-2">
 
-        </div>
+    <a href="{{ route('admin.user.index') }}"
+        class="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg text-sm font-semibold transition">
+        Batal
+    </a>
+
+    <button
+        type="submit"
+        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">
+        Perbarui
+    </button>
+
+</div>
 
     </form>
 

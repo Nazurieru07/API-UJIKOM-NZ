@@ -27,34 +27,112 @@
 
             <div class="flex items-center gap-3 w-full md:w-auto">
 
-                <!-- Form Search -->
-                <form action="{{ route('admin.peminjaman.index') }}" method="GET" class="flex w-full md:w-auto">
+                <!-- Form Search dan Filter -->
+<form
+    action="{{ route('admin.peminjaman.index') }}"
+    method="GET"
+    class="flex flex-wrap items-center gap-2 w-full md:w-auto"
+>
 
-                    <input
-                        type="text"
-                        name="search"
-                        value="{{ request('search') }}"
-                        placeholder="Cari nama peminjam / status..."
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
+    <!-- Search -->
+    <input
+        type="text"
+        name="search"
+        value="{{ request('search') }}"
+        placeholder="Cari nama peminjam / status..."
+        class="w-full md:w-64 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+    >
 
-                    <button
-                        type="submit"
-                        class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 text-sm font-semibold rounded-r-lg transition"
-                    >
-                        Cari
-                    </button>
+    <!-- Filter Status -->
+    <select
+        name="status"
+        class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+    >
 
-                    @if(request('search'))
-                        <a
-                            href="{{ route('admin.peminjaman.index') }}"
-                            class="ml-2 bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-2 text-sm rounded-lg flex items-center transition"
-                        >
-                            Reset
-                        </a>
-                    @endif
+        <option value="">
+            Semua Status
+        </option>
 
-                </form>
+        <option value="diajukan"
+            {{ request('status') == 'diajukan' ? 'selected' : '' }}>
+            Diajukan
+        </option>
+
+        <option value="dipinjam"
+            {{ request('status') == 'dipinjam' ? 'selected' : '' }}>
+            Dipinjam
+        </option>
+
+        <option value="dikembalikan"
+            {{ request('status') == 'dikembalikan' ? 'selected' : '' }}>
+            Dikembalikan
+        </option>
+
+        <option value="telat"
+            {{ request('status') == 'telat' ? 'selected' : '' }}>
+            Telat
+        </option>
+
+    </select>
+
+    <!-- Filter Jenis Kelamin -->
+<select
+    name="jenis_kelamin"
+    class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+>
+    <option value="">Semua Jenis Kelamin</option>
+    <option value="Laki-laki" {{ request('jenis_kelamin') == 'Laki-laki' ? 'selected' : '' }}>
+        Laki-laki
+    </option>
+    <option value="Perempuan" {{ request('jenis_kelamin') == 'Perempuan' ? 'selected' : '' }}>
+        Perempuan
+    </option>
+</select>
+
+<!-- Filter Tanggal Pinjam -->
+<input
+    type="date"
+    name="tanggal_dari"
+    value="{{ request('tanggal_dari') }}"
+    title="Tanggal Pinjam Dari"
+    class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+>
+
+<input
+    type="date"
+    name="tanggal_sampai"
+    value="{{ request('tanggal_sampai') }}"
+    title="Tanggal Pinjam Sampai"
+    class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+>
+
+   @if(
+            request('search') ||
+            request('status') ||
+            request('jenis_kelamin') ||
+            request('tanggal_dari') ||
+            request('tanggal_sampai')
+        )
+    <a
+        href="{{ route('admin.peminjaman.index') }}"
+        class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-2 text-sm rounded-lg flex items-center transition whitespace-nowrap"
+        title="Reset Pencarian dan Filter"
+    >
+        Reset
+    </a>
+@endif
+
+    <!-- Tombol Cari -->
+    <button
+        type="submit"
+        class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 text-sm font-semibold rounded-lg transition"
+    >
+        Cari
+    </button>
+
+</form>
+
+     
 
                 <!-- Tombol Tambah -->
                 <a
@@ -74,6 +152,7 @@
                 <thead>
                     <tr class="bg-gray-100 text-gray-600 text-sm uppercase tracking-wider">
                         <th class="py-3 px-4 border-b">Peminjam</th>
+                        <th class="py-3 px-4 border-b">Jenis Kelamin</th>
                         <th class="py-3 px-4 border-b">Alat yang Dipinjam</th>
                         <th class="py-3 px-4 border-b">Tgl Pinjam / Rencana Kembali</th>
                         <th class="py-3 px-4 border-b">Status</th>
@@ -91,6 +170,23 @@
                             <td class="py-3 px-4 border-b font-medium text-gray-900">
                                 {{ $peminjaman->user->name ?? 'User Dihapus' }}
                             </td>
+
+                            <!-- Jenis Kelamin -->
+<td class="py-3 px-4 border-b">
+    @if($peminjaman->user?->jenis_kelamin === 'Laki-laki')
+        <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">
+            Laki-laki
+        </span>
+    @elseif($peminjaman->user?->jenis_kelamin === 'Perempuan')
+        <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-pink-100 text-pink-700">
+            Perempuan
+        </span>
+    @else
+        <span class="px-2.5 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">
+            Belum diisi
+        </span>
+    @endif
+</td>
 
                             <!-- Alat yang Dipinjam -->
                             <td class="py-3 px-4 border-b">
@@ -232,7 +328,7 @@
                     @empty
 
                         <tr>
-                            <td colspan="5" class="py-4 text-center text-gray-500">
+                            <td colspan="6" class="py-4 text-center text-gray-500">
                                 Belum ada data peminjaman.
                             </td>
                         </tr>

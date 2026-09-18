@@ -24,14 +24,27 @@ class AdminController extends Controller
      * Menampilkan dashboard Admin dan log aktivitas.
      */
     public function index()
-    {
-        $logs = LogAktivitas::with('user')
-            ->latest()
-            ->take(10)
-            ->get();
+{
+    $jumlahAlat = Alat::count();
+    $jumlahUser = User::count();
+    $jumlahKategori = Kategori::count();
+    $jumlahPeminjaman = Peminjaman::count();
+    $jumlahPengembalian = Pengembalian::count();
 
-        return view('admin.dashboard', compact('logs'));
-    }
+    $logs = LogAktivitas::with('user')
+        ->latest()
+        ->take(10)
+        ->get();
+
+    return view('admin.dashboard', compact(
+        'jumlahAlat',
+        'jumlahUser',
+        'jumlahKategori',
+        'jumlahPeminjaman',
+        'jumlahPengembalian',
+        'logs'
+    ));
+}
 
 
     // =========================================================
@@ -42,32 +55,62 @@ class AdminController extends Controller
      * Menampilkan daftar alat.
      */
     public function indexAlat(Request $request)
-    {
-        $search = $request->input('search');
+{
+    $search = $request->input('search');
+    $kategoriFilter = $request->input('kategori');
+    $kondisi = $request->input('kondisi');
 
-        $alats = Alat::with('kategori')
-            ->when($search, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('nama_alat', 'like', "%{$search}%")
-                        ->orWhere('status_kondisi', 'like', "%{$search}%")
-                        ->orWhereHas('kategori', function ($kategori) use ($search) {
-                            $kategori->where(
-                                'nama_kategori',
-                                'like',
-                                "%{$search}%"
-                            );
-                        });
-                });
-            })
-            ->latest()
-            ->paginate(10)
-            ->withQueryString();
+    // Ambil semua kategori untuk dropdown filter
+    $kategori = Kategori::orderBy('nama_kategori')->get();
 
-        return view(
-            'admin.alat.index',
-            compact('alats', 'search')
-        );
-    }
+    $alats = Alat::with('kategori')
+
+        // =========================
+        // SEARCH
+        // =========================
+        ->when($search !== null && $search !== '', function ($query) use ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('nama_alat', 'like', "%{$search}%")
+                    ->orWhere('status_kondisi', 'like', "%{$search}%")
+                    ->orWhereHas('kategori', function ($kategoriQuery) use ($search) {
+                        $kategoriQuery->where(
+                            'nama_kategori',
+                            'like',
+                            "%{$search}%"
+                        );
+                    });
+            });
+        })
+
+        // =========================
+        // FILTER KATEGORI
+        // =========================
+        ->when($kategoriFilter !== null && $kategoriFilter !== '', function ($query) use ($kategoriFilter) {
+            $query->where('kategori_id', $kategoriFilter);
+        })
+
+        // =========================
+        // FILTER KONDISI
+        // =========================
+        ->when($kondisi !== null && $kondisi !== '', function ($query) use ($kondisi) {
+            $query->where('status_kondisi', $kondisi);
+        })
+
+        ->latest()
+        ->paginate(10)
+        ->withQueryString();
+
+    return view(
+        'admin.alat.index',
+        compact(
+            'alats',
+            'search',
+            'kategori',
+            'kategoriFilter',
+            'kondisi'
+        )
+    );
+}
 
 
     /**
@@ -228,6 +271,11 @@ class AdminController extends Controller
     public function indexPengembalian(Request $request)
     {
         $search = $request->input('search');
+        $kondisi = $request->input('kondisi');
+        $statusRequest = $request->input('status_request');
+        $tanggalDari = $request->input('tanggal_dari');
+        $tanggalSampai = $request->input('tanggal_sampai');
+        $jenisKelamin = $request->input('jenis_kelamin');
 
         $pengembalians = Pengembalian::with([
             'peminjaman.user',
@@ -246,13 +294,35 @@ class AdminController extends Controller
                     }
                 );
             })
+
+            ->when($kondisi, function ($query, $kondisi) {
+    $query->where('kondisi_kembali', $kondisi);
+})
+
+->when($statusRequest, function ($query, $statusRequest) {
+    $query->where('status_request', $statusRequest);
+})
+
+->when($tanggalDari, function ($query, $tanggalDari) {
+    $query->whereDate('tgl_kembali', '>=', $tanggalDari);
+})
+->when($tanggalSampai, function ($query, $tanggalSampai) {
+    $query->whereDate('tgl_kembali', '<=', $tanggalSampai);
+})
+
+->when($jenisKelamin, function ($query, $jenisKelamin) {
+    $query->whereHas('peminjaman.user', function ($user) use ($jenisKelamin) {
+        $user->where('jenis_kelamin', $jenisKelamin);
+    });
+})
+
             ->latest()
             ->paginate(10)
             ->withQueryString();
 
         return view(
             'admin.pengembalian.index',
-            compact('pengembalians', 'search')
+            compact('pengembalians', 'search', 'kondisi', 'statusRequest', 'tanggalDari', 'tanggalSampai', 'jenisKelamin')
         );
     }
 
@@ -547,25 +617,40 @@ class AdminController extends Controller
      * Menampilkan daftar user.
      */
     public function indexUser(Request $request)
-    {
-        $search = $request->input('search');
+{
+    $search = $request->input('search');
+    $jenisKelamin = $request->input('jenis_kelamin');
+    $role = $request->input('role');
 
-        $users = User::when($search, function ($query, $search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('role', 'like', "%{$search}%");
-            });
+    $users = User::when($search, function ($query, $search) {
+        $query->where(function ($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('role', 'like', "%{$search}%");
+        });
+    })
+        ->when($jenisKelamin, function ($query, $jenisKelamin) {
+            $query->where('jenis_kelamin', $jenisKelamin);
         })
-            ->latest()
-            ->paginate(10)
-            ->withQueryString();
+        ->when($role, function ($query, $role) {
+            $query->where('role', $role);
+        })
+        
+        ->orderByRaw("CASE
+    WHEN role = 'admin' THEN 1
+    WHEN role = 'petugas' THEN 2
+    WHEN role = 'peminjam' THEN 3
+    ELSE 4
+END")
+->latest()
+->paginate(10)
+->withQueryString();
 
-        return view(
-            'admin.user.index',
-            compact('users', 'search')
-        );
-    }
+    return view(
+        'admin.user.index',
+        compact('users', 'search', 'jenisKelamin', 'role')
+    );
+}
 
 
     /**
@@ -583,13 +668,14 @@ class AdminController extends Controller
     public function storeUser(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
-            'role' => 'required|in:admin,petugas,peminjam',
-            'no_hp' => 'nullable|string|max:20',
-            'foto_profile' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-        ]);
+    'name' => 'required|string|max:255',
+    'email' => 'required|email|unique:users,email',
+    'password' => 'required|string|min:8',
+    'role' => 'required|in:admin,petugas,peminjam',
+    'no_hp' => 'nullable|string|max:20',
+    'jenis_kelamin' => 'nullable|in:Laki-laki,Perempuan',
+    'foto_profile' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+]);
 
         $data = [
             'name' => $request->name,
@@ -597,6 +683,7 @@ class AdminController extends Controller
             'password' => Hash::make($request->password),
             'role' => $request->role,
             'no_hp' => $request->no_hp,
+            'jenis_kelamin' => $request->jenis_kelamin,
         ];
 
         // Upload foto profil
@@ -655,6 +742,7 @@ class AdminController extends Controller
                 'required|string|email|max:255|unique:users,email,' . $id,
             'role' => 'required|in:admin,petugas,peminjam',
             'no_hp' => 'nullable|string|max:20',
+            'jenis_kelamin' => 'nullable|in:Laki-laki,Perempuan',
             'foto_profile' =>
                 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
@@ -664,6 +752,7 @@ class AdminController extends Controller
             'email' => $request->email,
             'role' => $request->role,
             'no_hp' => $request->no_hp,
+            'jenis_kelamin' => $request->jenis_kelamin,
         ];
 
         // Update password jika diisi
@@ -716,30 +805,37 @@ class AdminController extends Controller
      * Menghapus user.
      */
     public function destroyUser($id)
-    {
-        $user = User::findOrFail($id);
+{
+    $user = User::findOrFail($id);
 
-        // Hapus foto profil
-        if (
-            $user->foto_profile &&
-            file_exists(
-                public_path($user->foto_profile)
-            )
-        ) {
-            unlink(
-                public_path($user->foto_profile)
-            );
-        }
-
-        $user->delete();
-
+    // Admin tidak boleh menghapus akun sendiri
+    if ($user->id === auth()->id()) {
         return redirect()
             ->route('admin.user.index')
-            ->with(
-                'success',
-                'User berhasil dihapus.'
-            );
+            ->with('error', 'Anda tidak dapat menghapus akun sendiri.');
     }
+
+    // Hapus foto profil
+    if (
+        $user->foto_profile &&
+        file_exists(
+            public_path($user->foto_profile)
+        )
+    ) {
+        unlink(
+            public_path($user->foto_profile)
+        );
+    }
+
+    $user->delete();
+
+    return redirect()
+        ->route('admin.user.index')
+        ->with(
+            'success',
+            'User berhasil dihapus.'
+        );
+}
 
 
     // =========================================================
@@ -871,41 +967,61 @@ class AdminController extends Controller
      * Menampilkan daftar peminjaman.
      */
     public function indexPeminjaman(Request $request)
-    {
-        $search = $request->input('search');
+{
+    $search = $request->input('search');
+    $status = $request->input('status');
+    $jenisKelamin = $request->input('jenis_kelamin');
+    $tanggalDari = $request->input('tanggal_dari');
+    $tanggalSampai = $request->input('tanggal_sampai');
 
-        $peminjamans = Peminjaman::with([
-            'user',
-            'detailPinjams.alat'
-        ])
-            ->when($search, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where(
-                        'status',
-                        'like',
-                        "%{$search}%"
-                    )
-                        ->orWhereHas(
-                            'user',
-                            function ($user) use ($search) {
-                                $user->where(
-                                    'name',
-                                    'like',
-                                    "%{$search}%"
-                                );
-                            }
-                        );
-                });
-            })
-            ->latest()
-            ->paginate(10)
-            ->withQueryString();
+    $peminjamans = Peminjaman::with([
+        'user',
+        'detailPinjams.alat'
+    ])
+        ->when($search, function ($query, $search) {
+            $query->where(function ($q) use ($search) {
+                $q->where(
+                    'status',
+                    'like',
+                    "%{$search}%"
+                )
+                    ->orWhereHas(
+                        'user',
+                        function ($user) use ($search) {
+                            $user->where(
+                                'name',
+                                'like',
+                                "%{$search}%"
+                            );
+                        }
+                    );
+            });
+        })
+        ->when($status, function ($query, $status) {
+            $query->where('status', $status);
+        })
+        ->when($jenisKelamin, function ($query, $jenisKelamin) {
+    $query->whereHas('user', function ($user) use ($jenisKelamin) {
+        $user->where('jenis_kelamin', $jenisKelamin);
+            });
+        })
 
-        return view(
-            'admin.peminjaman.index',
-            compact('peminjamans', 'search')
-        );
-    }
+        ->when($tanggalDari, function ($query, $tanggalDari) {
+            $query->whereDate('tgl_pinjam', '>=', $tanggalDari);
+        })
+        ->when($tanggalSampai, function ($query, $tanggalSampai) {
+            $query->whereDate('tgl_pinjam', '<=', $tanggalSampai);
+        })
+
+        ->latest()
+        ->paginate(10)
+        ->withQueryString();
+
+    return view(
+        'admin.peminjaman.index',
+        compact('peminjamans', 'search', 'status', 'jenisKelamin', 'tanggalDari', 'tanggalSampai')
+    );
+}
 
 
     /**
@@ -1241,4 +1357,17 @@ class AdminController extends Controller
 
         return response()->json($alats);
     }
+
+    //=====================================
+    //LOG AKTIVITAS//
+    //=====================================
+    public function indexLogAktivitas(Request $request)
+{
+    $logs = LogAktivitas::with('user')
+        ->latest()
+        ->paginate(10)
+        ->withQueryString();
+
+    return view('admin.log_aktivitas.index', compact('logs'));
+}
 }

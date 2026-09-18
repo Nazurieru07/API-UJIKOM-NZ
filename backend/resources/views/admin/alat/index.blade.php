@@ -17,32 +17,91 @@
 
             <div class="flex items-center gap-3 w-full md:w-auto">
 
-                {{-- Form Search --}}
-                <form action="{{ route('admin.alat.index') }}" method="GET" class="flex w-full md:w-auto">
-                    <input
-                        type="text"
-                        name="search"
-                        value="{{ request('search') }}"
-                        placeholder="Cari nama alat, kategori..."
-                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
+    <form
+    action="{{ route('admin.alat.index') }}"
+    method="GET"
+    class="flex flex-wrap items-center gap-2"
+>
 
-                    <button
-                        type="submit"
-                        class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 text-sm font-semibold rounded-r-lg transition"
-                    >
-                        Cari
-                    </button>
+    {{-- Search --}}
+    <div class="flex">
+        <input
+            type="text"
+            name="search"
+            value="{{ request('search') }}"
+            placeholder="Cari nama alat, kategori..."
+            class="w-56 px-3 py-2 text-sm border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
 
-                    @if(request('search'))
-                        <a
-                            href="{{ route('admin.alat.index') }}"
-                            class="ml-2 bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-2 text-sm rounded-lg flex items-center transition"
-                        >
-                            Reset
-                        </a>
-                    @endif
-                </form>
+        <button
+            type="submit"
+            class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 text-sm font-semibold rounded-r-lg transition"
+        >
+            Cari
+        </button>
+    </div>
+
+
+    {{-- Filter Kategori --}}
+    <select
+    name="kategori"
+    onchange="this.form.submit()"
+    class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+>
+    <option value="">Semua Kategori</option>
+
+    @foreach($kategori as $item)
+        <option
+            value="{{ $item->id }}"
+            {{ request('kategori') == $item->id ? 'selected' : '' }}
+        >
+            {{ $item->nama_kategori }}
+        </option>
+    @endforeach
+</select>
+
+
+    {{-- Filter Kondisi --}}
+    <select
+    name="kondisi"
+    onchange="this.form.submit()"
+    class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+>
+    <option value="">Semua Kondisi</option>
+
+    <option
+        value="Baik"
+        {{ request('kondisi') == 'Baik' ? 'selected' : '' }}
+    >
+        Baik
+    </option>
+
+    <option
+        value="Rusak"
+        {{ request('kondisi') == 'Rusak' ? 'selected' : '' }}
+    >
+        Rusak
+    </option>
+
+    <option
+        value="Rusak Parah"
+        {{ request('kondisi') == 'Rusak Parah' ? 'selected' : '' }}
+    >
+        Rusak Parah
+    </option>
+</select>
+
+    {{-- Reset --}}
+    @if(request('search') || request('kategori') || request('kondisi'))
+        <a
+            href="{{ route('admin.alat.index') }}"
+            class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-2 text-sm rounded-lg transition"
+        >
+            Reset
+        </a>
+    @endif
+
+</form>
 
                 {{-- Tombol Tambah --}}
                 <a
@@ -98,16 +157,20 @@
                             </td>
 
                             <td class="py-3 px-4 border-b">
-                                <span class="px-2.5 py-1 text-xs font-semibold rounded-full
-                                    @if(strtolower($alat->status_kondisi) === 'baik')
-                                        bg-emerald-100 text-emerald-800
-                                    @else
-                                        bg-amber-100 text-amber-800
-                                    @endif
-                                ">
-                                    {{ $alat->status_kondisi }}
-                                </span>
-                            </td>
+    <span class="px-2.5 py-1 text-xs font-semibold rounded-full
+        @if($alat->status_kondisi === 'Baik')
+            bg-emerald-100 text-emerald-800
+        @elseif($alat->status_kondisi === 'Rusak')
+            bg-amber-100 text-amber-800
+        @elseif($alat->status_kondisi === 'Rusak Parah')
+            bg-red-100 text-red-800
+        @else
+            bg-gray-100 text-gray-800
+        @endif
+    ">
+        {{ $alat->status_kondisi }}
+    </span>
+</td>
 
                             <td class="py-3 px-4 border-b">
                                 <div class="flex items-center space-x-2">
@@ -158,3 +221,4 @@
     </div>
 
 @endsection
+
