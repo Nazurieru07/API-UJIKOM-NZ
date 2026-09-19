@@ -9,6 +9,9 @@ use App\Models\User;
 use App\Models\Peminjaman;
 use App\Models\Pengembalian;
 use App\Models\DetailPinjam;
+use App\Notifications\PengembalianDisetujuiNotification;
+use App\Notifications\PengembalianDitolakNotification;
+use App\Notifications\PengembalianSelesaiNotification;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -405,9 +408,11 @@ class AdminController extends Controller
         DB::beginTransaction();
 
         try {
-            $pengembalian = Pengembalian::with([
-                'peminjaman.detailPinjams.alat'
-            ])->findOrFail($id);
+           $pengembalian = Pengembalian::with([
+            'petugas',
+            'peminjaman.user',
+            'peminjaman.detailPinjams.alat'
+        ])->findOrFail($id);
 
             if ($pengembalian->status_request !== 'menunggu') {
                 throw new \Exception(
@@ -462,6 +467,16 @@ class AdminController extends Controller
 
             DB::commit();
 
+            // Kirim notifikasi kepada Petugas yang mengajukan
+            $pengembalian->petugas->notify(
+                new PengembalianDisetujuiNotification($pengembalian)
+            );
+
+            // Kirim notifikasi kepada Peminjam
+            $pengembalian->peminjaman->user->notify(
+                new PengembalianSelesaiNotification($pengembalian)
+            );
+
             return redirect()
                 ->route('admin.pengembalian.index')
                 ->with(
@@ -489,7 +504,7 @@ class AdminController extends Controller
         DB::beginTransaction();
 
         try {
-            $pengembalian = Pengembalian::findOrFail($id);
+            $pengembalian = Pengembalian::with('petugas')->findOrFail($id);
 
             if ($pengembalian->status_request !== 'menunggu') {
                 throw new \Exception(
@@ -504,12 +519,18 @@ class AdminController extends Controller
 
             DB::commit();
 
-            return redirect()
-                ->route('admin.pengembalian.index')
-                ->with(
-                    'success',
-                    'Pengajuan pengembalian ditolak dan dapat diperbaiki oleh Petugas.'
-                );
+// Kirim notifikasi kepada Petugas yang mengajukan
+$pengembalian->petugas->notify(
+    new PengembalianDitolakNotification($pengembalian)
+);
+
+return redirect()
+    ->route('admin.pengembalian.index')
+    ->with(
+        'success',
+        'Pengajuan pengembalian ditolak dan dapat diperbaiki oleh Petugas.'
+    );
+
         } catch (\Exception $e) {
             DB::rollBack();
 

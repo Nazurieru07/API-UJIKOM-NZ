@@ -153,3 +153,11 @@ Route::get('/who-am-i', function () {
         'time' => now()->toDateTimeString(),
     ]);
 });
+
+Route::post('/notifications/read-all', function () {
+    auth()->user()->unreadNotifications->markAsRead();
+
+    return response()->json([
+        'success' => true
+    ]);
+})->middleware('auth')->name('notifications.readAll');

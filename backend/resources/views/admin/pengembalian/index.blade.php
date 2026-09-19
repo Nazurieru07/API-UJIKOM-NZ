@@ -22,138 +22,418 @@
     @endif
 
 
-    {{-- Header --}}
-    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+     {{-- Header --}}
+<div class="p-4 border-b border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4">
 
-        <h2 class="text-lg font-semibold text-gray-800">
-            Data Pengembalian
-        </h2>
+    <h2 class="text-lg font-semibold text-gray-800">
+        Data Pengembalian
+    </h2>
 
-        <div class="flex items-center gap-2">
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
 
-            {{-- Search --}}
-            <form
-                action="{{ route('admin.pengembalian.index') }}"
-                method="GET"
-                class="flex"
+        {{-- ========================================= --}}
+        {{-- SEARCH MOBILE --}}
+        {{-- ========================================= --}}
+        <form
+            action="{{ route('admin.pengembalian.index') }}"
+            method="GET"
+            class="flex md:hidden w-full"
+        >
+            <input
+                type="text"
+                name="search"
+                value="{{ request('search') }}"
+                placeholder="Cari nama peminjam"
+                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+                       focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
 
-                <input
-                    type="text"
-                    name="search"
-                    value="{{ $search }}"
-                    placeholder="Cari nama peminjam"
-                    class="border border-gray-300 rounded-l-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            @if(request('kondisi'))
+                <input type="hidden" name="kondisi" value="{{ request('kondisi') }}">
+            @endif
+
+            @if(request('status_request'))
+                <input type="hidden" name="status_request" value="{{ request('status_request') }}">
+            @endif
+
+            @if(request('jenis_kelamin'))
+                <input type="hidden" name="jenis_kelamin" value="{{ request('jenis_kelamin') }}">
+            @endif
+
+            @if(request('tanggal_dari'))
+                <input type="hidden" name="tanggal_dari" value="{{ request('tanggal_dari') }}">
+            @endif
+
+            @if(request('tanggal_sampai'))
+                <input type="hidden" name="tanggal_sampai" value="{{ request('tanggal_sampai') }}">
+            @endif
+        </form>
+
+
+        {{-- ========================================= --}}
+        {{-- FILTER DESKTOP --}}
+        {{-- ========================================= --}}
+        <form
+            action="{{ route('admin.pengembalian.index') }}"
+            method="GET"
+            class="hidden md:flex flex-wrap items-center gap-2"
+        >
+
+            {{-- Search --}}
+            <input
+                type="text"
+                name="search"
+                value="{{ request('search') }}"
+                placeholder="Cari nama peminjam"
+                class="w-56 border border-gray-300 rounded-lg px-3 py-2 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+
+            {{-- Filter Kondisi --}}
+            <select
+                name="kondisi"
+                class="border border-gray-300 rounded-lg px-3 py-2 text-sm
+                       bg-white text-gray-700 focus:outline-none
+                       focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+                <option value="">Semua Kondisi</option>
+
+                <option value="Baik"
+                    {{ request('kondisi') == 'Baik' ? 'selected' : '' }}>
+                    Baik
+                </option>
+
+                <option value="Rusak Ringan"
+                    {{ request('kondisi') == 'Rusak Ringan' ? 'selected' : '' }}>
+                    Rusak Ringan
+                </option>
+
+                <option value="Rusak Berat"
+                    {{ request('kondisi') == 'Rusak Berat' ? 'selected' : '' }}>
+                    Rusak Berat
+                </option>
+            </select>
+
+
+            {{-- Filter Status Pengajuan --}}
+            <select
+                name="status_request"
+                class="border border-gray-300 rounded-lg px-3 py-2 text-sm
+                       bg-white text-gray-700 focus:outline-none
+                       focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+                <option value="">Semua Status</option>
+
+                <option value="menunggu"
+                    {{ request('status_request') == 'menunggu' ? 'selected' : '' }}>
+                    Menunggu Persetujuan
+                </option>
+
+                <option value="disetujui"
+                    {{ request('status_request') == 'disetujui' ? 'selected' : '' }}>
+                    Disetujui
+                </option>
+
+                <option value="ditolak"
+                    {{ request('status_request') == 'ditolak' ? 'selected' : '' }}>
+                    Ditolak
+                </option>
+            </select>
+
+
+            {{-- Filter Jenis Kelamin --}}
+            <select
+                name="jenis_kelamin"
+                class="border border-gray-300 rounded-lg px-3 py-2 text-sm
+                       bg-white text-gray-700 focus:outline-none
+                       focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+                <option value="">Semua Jenis Kelamin</option>
+
+                <option value="Laki-laki"
+                    {{ request('jenis_kelamin') == 'Laki-laki' ? 'selected' : '' }}>
+                    Laki-laki
+                </option>
+
+                <option value="Perempuan"
+                    {{ request('jenis_kelamin') == 'Perempuan' ? 'selected' : '' }}>
+                    Perempuan
+                </option>
+            </select>
+
+
+            {{-- Tanggal Dari --}}
+            <input
+                type="date"
+                name="tanggal_dari"
+                value="{{ request('tanggal_dari') }}"
+                class="border border-gray-300 rounded-lg px-3 py-2 text-sm
+                       bg-white text-gray-700 focus:outline-none
+                       focus:ring-2 focus:ring-blue-500"
+                title="Tanggal Dari"
+            >
+
+
+            {{-- Tanggal Sampai --}}
+            <input
+                type="date"
+                name="tanggal_sampai"
+                value="{{ request('tanggal_sampai') }}"
+                class="border border-gray-300 rounded-lg px-3 py-2 text-sm
+                       bg-white text-gray-700 focus:outline-none
+                       focus:ring-2 focus:ring-blue-500"
+                title="Tanggal Sampai"
+            >
+
+
+            {{-- Reset --}}
+            @if(
+                request('search') ||
+                request('kondisi') ||
+                request('status_request') ||
+                request('jenis_kelamin') ||
+                request('tanggal_dari') ||
+                request('tanggal_sampai')
+            )
+                <a
+                    href="{{ route('admin.pengembalian.index') }}"
+                    class="bg-gray-200 hover:bg-gray-300 text-gray-700
+                           px-4 py-2 rounded-lg text-sm font-semibold
+                           transition whitespace-nowrap"
+                >
+                    Reset
+                </a>
+            @endif
+
+
+            {{-- Cari --}}
+            <button
+                type="submit"
+                class="bg-gray-800 hover:bg-gray-900 text-white
+                       px-4 py-2 rounded-lg text-sm font-semibold
+                       transition"
+            >
+                Cari
+            </button>
+
+        </form>
+
+
+        {{-- ========================================= --}}
+        {{-- FILTER MOBILE --}}
+        {{-- ========================================= --}}
+        <details class="relative md:hidden w-full">
+
+            <summary
+                class="list-none cursor-pointer w-full
+                       bg-gray-800 hover:bg-gray-900
+                       text-white px-4 py-2 rounded-lg
+                       text-sm font-semibold text-center
+                       transition"
+            >
+                ☰ Filter
+            </summary>
+
+
+            {{-- Panel Filter --}}
+            <div
+                class="absolute left-0 right-0 top-12
+                       max-h-[70vh] overflow-y-auto
+                       bg-white border border-gray-200
+                       rounded-xl shadow-lg z-50 p-4"
+            >
+
+                <h4 class="font-semibold text-gray-800 mb-4">
+                    Filter Pengembalian
+                </h4>
+
+
+                <form
+                    action="{{ route('admin.pengembalian.index') }}"
+                    method="GET"
+                    class="space-y-3"
                 >
 
-                {{-- Filter Kondisi --}}
-                <select
-                    name="kondisi"
-                    class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700
-                        focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                        cursor-pointer"
-                >
-                    <option value="">Semua Kondisi</option>
-                    <option value="Baik" {{ request('kondisi') == 'Baik' ? 'selected' : '' }}>
-                        Baik
-                    </option>
-                    <option value="Rusak Ringan" {{ request('kondisi') == 'Rusak Ringan' ? 'selected' : '' }}>
-                        Rusak Ringan
-                    </option>
-                    <option value="Rusak Berat" {{ request('kondisi') == 'Rusak Berat' ? 'selected' : '' }}>
-                        Rusak Berat
-                    </option>
-                </select>
+                    {{-- Search --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Cari Peminjam
+                        </label>
 
-                {{-- Filter Status Pengajuan --}}
-<select
-    name="status_request"
-    class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-           cursor-pointer"
->
-    <option value="">Semua Status</option>
+                        <input
+                            type="text"
+                            name="search"
+                            value="{{ request('search') }}"
+                            placeholder="Cari nama peminjam..."
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+                                   focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
 
-    <option value="menunggu" {{ request('status_request') == 'menunggu' ? 'selected' : '' }}>
-        Menunggu Persetujuan
-    </option>
 
-    <option value="disetujui" {{ request('status_request') == 'disetujui' ? 'selected' : '' }}>
-        Disetujui
-    </option>
+                    {{-- Kondisi --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Kondisi
+                        </label>
 
-    <option value="ditolak" {{ request('status_request') == 'ditolak' ? 'selected' : '' }}>
-        Ditolak
-    </option>
-</select>
+                        <select
+                            name="kondisi"
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+                                   focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="">Semua Kondisi</option>
 
-{{-- Filter Jenis Kelamin --}}
-<select
-    name="jenis_kelamin"
-    class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-           cursor-pointer"
->
-    <option value="">Semua Jenis Kelamin</option>
+                            <option value="Baik"
+                                {{ request('kondisi') == 'Baik' ? 'selected' : '' }}>
+                                Baik
+                            </option>
 
-    <option value="Laki-laki" {{ request('jenis_kelamin') == 'Laki-laki' ? 'selected' : '' }}>
-        Laki-laki
-    </option>
+                            <option value="Rusak Ringan"
+                                {{ request('kondisi') == 'Rusak Ringan' ? 'selected' : '' }}>
+                                Rusak Ringan
+                            </option>
 
-    <option value="Perempuan" {{ request('jenis_kelamin') == 'Perempuan' ? 'selected' : '' }}>
-        Perempuan
-    </option>
-</select>
+                            <option value="Rusak Berat"
+                                {{ request('kondisi') == 'Rusak Berat' ? 'selected' : '' }}>
+                                Rusak Berat
+                            </option>
+                        </select>
+                    </div>
 
-{{-- Filter Tanggal Dari --}}
-<input
-    type="date"
-    name="tanggal_dari"
-    value="{{ request('tanggal_dari') }}"
-    class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-    title="Tanggal Dari"
->
 
-{{-- Filter Tanggal Sampai --}}
-<input
-    type="date"
-    name="tanggal_sampai"
-    value="{{ request('tanggal_sampai') }}"
-    class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white text-gray-700
-           focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-    title="Tanggal Sampai"
->
+                    {{-- Status Pengajuan --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Status Pengajuan
+                        </label>
 
-                <button
-                    type="submit"
-                    class="bg-gray-800 text-white px-4 py-2 rounded-r-lg text-sm font-semibold hover:bg-gray-900 transition"
-                >
-                    Cari
-                </button>
+                        <select
+                            name="status_request"
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+                                   focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="">Semua Status</option>
 
-                @if(
-    request('search') ||
-    request('kondisi') ||
-    request('status_request') ||
-    request('jenis_kelamin') ||
-    request('tanggal_dari') ||
-    request('tanggal_sampai')
-)
-    <a
-        href="{{ route('admin.pengembalian.index') }}"
-        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold transition"
-    >
-        Reset
-    </a>
-@endif
+                            <option value="menunggu"
+                                {{ request('status_request') == 'menunggu' ? 'selected' : '' }}>
+                                Menunggu Persetujuan
+                            </option>
 
-            </form>
+                            <option value="disetujui"
+                                {{ request('status_request') == 'disetujui' ? 'selected' : '' }}>
+                                Disetujui
+                            </option>
 
-        </div>
+                            <option value="ditolak"
+                                {{ request('status_request') == 'ditolak' ? 'selected' : '' }}>
+                                Ditolak
+                            </option>
+                        </select>
+                    </div>
+
+
+                    {{-- Jenis Kelamin --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Jenis Kelamin
+                        </label>
+
+                        <select
+                            name="jenis_kelamin"
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+                                   focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                            <option value="">Semua Jenis Kelamin</option>
+
+                            <option value="Laki-laki"
+                                {{ request('jenis_kelamin') == 'Laki-laki' ? 'selected' : '' }}>
+                                Laki-laki
+                            </option>
+
+                            <option value="Perempuan"
+                                {{ request('jenis_kelamin') == 'Perempuan' ? 'selected' : '' }}>
+                                Perempuan
+                            </option>
+                        </select>
+                    </div>
+
+
+                    {{-- Tanggal Dari --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Tanggal Dari
+                        </label>
+
+                        <input
+                            type="date"
+                            name="tanggal_dari"
+                            value="{{ request('tanggal_dari') }}"
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+                                   focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
+
+
+                    {{-- Tanggal Sampai --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            Tanggal Sampai
+                        </label>
+
+                        <input
+                            type="date"
+                            name="tanggal_sampai"
+                            value="{{ request('tanggal_sampai') }}"
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg
+                                   focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                    </div>
+
+
+                    {{-- Tombol --}}
+                    <div class="flex flex-col gap-2 pt-2">
+
+                        <button
+                            type="submit"
+                            class="w-full bg-blue-600 hover:bg-blue-700
+                                   text-white px-4 py-2 rounded-lg
+                                   text-sm font-semibold transition"
+                        >
+                            Cari
+                        </button>
+
+
+                        @if(
+                            request('search') ||
+                            request('kondisi') ||
+                            request('status_request') ||
+                            request('jenis_kelamin') ||
+                            request('tanggal_dari') ||
+                            request('tanggal_sampai')
+                        )
+                            <a
+                                href="{{ route('admin.pengembalian.index') }}"
+                                class="w-full bg-gray-200 hover:bg-gray-300
+                                       text-gray-700 px-4 py-2 rounded-lg
+                                       text-sm font-semibold text-center
+                                       transition"
+                            >
+                                Reset
+                            </a>
+                        @endif
+
+                    </div>
+
+                </form>
+
+            </div>
+
+        </details>
 
     </div>
 
+</div>
 
     {{-- Table --}}
     <div class="overflow-x-auto">
@@ -224,15 +504,15 @@
 
                         <td class="px-4 py-4">
     @if($pengembalian->peminjaman->user->jenis_kelamin == 'Laki-laki')
-        <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-medium">
+        <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap">
             Laki-laki
         </span>
     @elseif($pengembalian->peminjaman->user->jenis_kelamin == 'Perempuan')
-        <span class="bg-pink-100 text-pink-800 px-3 py-1 rounded-full text-xs font-medium">
+        <span class="bg-pink-100 text-pink-800 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap">
             Perempuan
         </span>
     @else
-        <span class="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-xs font-medium">
+        <span class="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap">
             -
         </span>
     @endif

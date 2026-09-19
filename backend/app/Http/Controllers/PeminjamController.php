@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Alat;
 use App\Models\Peminjaman;
 use App\Models\DetailPinjam;
+use App\Models\User;
+use App\Notifications\PeminjamanDiajukanNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+
 
 class PeminjamController extends Controller
 {
@@ -113,27 +116,36 @@ class PeminjamController extends Controller
             ]);
         }
 
-        DB::commit();
+                    DB::commit();
 
-        return redirect()
-            ->route('peminjam.riwayat')
-            ->with(
-                'success',
-                'Pengajuan peminjaman berhasil dikirim dan menunggu persetujuan petugas.'
-            );
+            // Kirim notifikasi ke semua Petugas
+            User::where('role', 'petugas')
+                ->get()
+                ->each(function ($petugas) use ($peminjaman) {
+                    $petugas->notify(
+                        new PeminjamanDiajukanNotification($peminjaman)
+                    );
+                });
 
-    } catch (\Exception $e) {
+            return redirect()
+                ->route('peminjam.riwayat')
+                ->with(
+                    'success',
+                    'Pengajuan peminjaman berhasil dikirim dan menunggu persetujuan petugas.'
+                );
 
-        DB::rollBack();
+            } catch (\Exception $e) {
 
-        return redirect()
-            ->back()
-            ->withInput()
-            ->with(
-                'error',
-                'Gagal mengajukan peminjaman: ' . $e->getMessage()
-            );
-    }
+                DB::rollBack();
+
+                return redirect()
+                    ->back()
+                    ->withInput()
+                    ->with(
+                        'error',
+                        'Gagal mengajukan peminjaman: ' . $e->getMessage()
+                    );
+            }
 }
 
 

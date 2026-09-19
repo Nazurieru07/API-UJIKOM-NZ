@@ -154,7 +154,7 @@
 
 
         <!-- MAIN CONTENT CONTAINER -->
-        <div class="flex-1 flex flex-col overflow-y-auto">
+<div class="flex-1 min-w-0 flex flex-col overflow-y-auto overflow-x-hidden">
 
 
             <!-- NAVBAR ATAS -->
@@ -164,20 +164,102 @@
                     @yield('header-title', 'Dashboard')
                 </div>
 
-                <div>
+                <div class="flex items-center gap-4">
 
-                    <form action="{{ route('logout') }}" method="POST">
+    {{-- Notification --}}
+<details class="relative">
 
-                        @csrf
+    <summary
+    id="notificationBell"
+    class="list-none cursor-pointer relative text-gray-600 hover:text-gray-800 transition text-xl"
+    title="Notifikasi">
 
-                        <button type="submit"
-                            class="bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">
-                            Logout
-                        </button>
+        🔔
 
-                    </form>
+        @if(auth()->user()->unreadNotifications->count() > 0)
+            <span
+    id="notificationBadge"
+    class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold
+           min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center">
+    {{ auth()->user()->unreadNotifications->count() }}
+</span>
+        @endif
+
+    </summary>
+
+    {{-- Dropdown Notifikasi --}}
+    <div
+        class="absolute right-0 mt-3 w-96 bg-white border border-gray-200
+               rounded-xl shadow-lg z-50 overflow-hidden">
+
+        <div class="px-4 py-3 border-b border-gray-200">
+            <h3 class="font-semibold text-gray-800">
+                Notifikasi
+            </h3>
+        </div>
+
+        <div class="max-h-96 overflow-y-auto">
+
+            @forelse(auth()->user()->notifications()->latest()->take(5)->get() as $notification)
+
+                <div
+                    class="px-4 py-3 border-b border-gray-100
+                           hover:bg-gray-50 transition
+                           {{ is_null($notification->read_at) ? 'bg-blue-50' : '' }}">
+
+                    <div class="flex items-start gap-3">
+
+                        <div class="text-lg">
+                            🔔
+                        </div>
+
+                        <div class="flex-1">
+
+                            <p class="text-sm font-semibold text-gray-800">
+                                {{ $notification->data['judul'] ?? 'Notifikasi' }}
+                            </p>
+
+                            <p class="text-xs text-gray-600 mt-1">
+                                {{ $notification->data['pesan'] ?? '' }}
+                            </p>
+
+                            <p class="text-[11px] text-gray-400 mt-2">
+                                {{ $notification->created_at->diffForHumans() }}
+                            </p>
+
+                        </div>
+
+                    </div>
 
                 </div>
+
+            @empty
+
+                <div class="px-4 py-8 text-center text-sm text-gray-500">
+                    Belum ada notifikasi.
+                </div>
+
+            @endforelse
+
+        </div>
+
+    </div>
+
+</details>
+
+    {{-- Logout --}}
+    <form action="{{ route('logout') }}" method="POST">
+
+        @csrf
+
+        <button type="submit"
+            class="bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition">
+            Logout
+        </button>
+
+    </form>
+
+</div>
 
             </header>
 
@@ -196,3 +278,27 @@
 </body>
 
 </html>
+
+<script>
+    const notificationBell = document.getElementById('notificationBell');
+    const notificationBadge = document.getElementById('notificationBadge');
+
+    if (notificationBell) {
+        notificationBell.addEventListener('click', function () {
+
+            fetch('{{ route('notifications.readAll') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && notificationBadge) {
+                    notificationBadge.remove();
+                }
+            });
+        });
+    }
+</script>

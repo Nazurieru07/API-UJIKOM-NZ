@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Alat;
 use App\Models\Peminjaman;
 use App\Models\Pengembalian;
+use App\Notifications\PeminjamanDisetujuiNotification;
+use App\Models\User;
+use App\Notifications\PengembalianDiajukanNotification;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -65,14 +68,19 @@ class PetugasController extends Controller
                 $alat->save();
             }
 
-            DB::commit();
+           DB::commit();
 
-            return redirect()
-                ->back()
-                ->with(
-                    'success',
-                    'Peminjaman disetujui dan stok alat dikurangi.'
-                );
+// Kirim notifikasi kepada Peminjam
+$peminjaman->user->notify(
+    new PeminjamanDisetujuiNotification($peminjaman)
+);
+
+return redirect()
+    ->back()
+    ->with(
+        'success',
+        'Peminjaman disetujui dan stok alat dikurangi.'
+    );
 
         } catch (\Exception $e) {
 
@@ -239,7 +247,7 @@ class PetugasController extends Controller
             } else {
 
                 // Jika belum pernah ada pengajuan
-                Pengembalian::create([
+                $pengembalian = Pengembalian::create([
                     'peminjaman_id' => $peminjaman->id,
                     'tgl_kembali' => now()->toDateString(),
                     'kondisi_kembali' => $request->kondisi_kembali,
@@ -252,8 +260,17 @@ class PetugasController extends Controller
 
             DB::commit();
 
-            return redirect()
-                ->back()
+// Kirim notifikasi ke semua Admin
+User::where('role', 'admin')
+    ->get()
+    ->each(function ($admin) use ($pengembalian) {
+        $admin->notify(
+            new PengembalianDiajukanNotification($pengembalian)
+        );
+    });
+
+return redirect()
+    ->back()
                 ->with(
                     'success',
                     'Pengajuan pengembalian berhasil dikirim ke Admin untuk diperiksa.'
