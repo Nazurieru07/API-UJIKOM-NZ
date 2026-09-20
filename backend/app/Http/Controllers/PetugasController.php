@@ -60,13 +60,30 @@ class PetugasController extends Controller
                 'status' => 'dipinjam'
             ]);
 
-            // Kurangi stok alat
-            foreach ($peminjaman->detailPinjams as $detail) {
-                $alat = Alat::findOrFail($detail->alat_id);
+            // Kurangi stok alat dari kondisi Baik
+foreach ($peminjaman->detailPinjams as $detail) {
+    $alat = Alat::findOrFail($detail->alat_id);
 
-                $alat->stok -= $detail->jumlah;
-                $alat->save();
-            }
+    // Pastikan stok total cukup
+    if ($alat->stok < $detail->jumlah) {
+        throw new \Exception(
+            "Stok alat '{$alat->nama_alat}' tidak mencukupi."
+        );
+    }
+
+    // Pastikan stok dalam kondisi baik cukup untuk dipinjam
+    if ($alat->stok_baik < $detail->jumlah) {
+        throw new \Exception(
+            "Stok alat '{$alat->nama_alat}' dalam kondisi baik tidak mencukupi."
+        );
+    }
+
+    // Kurangi stok total
+    $alat->decrement('stok', $detail->jumlah);
+
+    // Kurangi stok kondisi baik
+    $alat->decrement('stok_baik', $detail->jumlah);
+}
 
            DB::commit();
 

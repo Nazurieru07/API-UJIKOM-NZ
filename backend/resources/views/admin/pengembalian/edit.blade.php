@@ -59,7 +59,7 @@
                 </label>
 
                 <div class="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-800">
-                    {{ $pengembalian->petugas->name }}
+                    {{ $pengembalian->petugas?->name ?? 'Admin' }}
                 </div>
             </div>
 

@@ -6,16 +6,16 @@
 @section('content')
 
     @if(session('success'))
-        <div class="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-lg shadow-sm text-sm">
-            {{ session('success') }}
-        </div>
-    @endif
+    <div class="flash-success mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-lg shadow-sm text-sm">
+        {{ session('success') }}
+    </div>
+@endif
 
     @if(session('error'))
-        <div class="mb-4 bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg shadow-sm text-sm">
-            {{ session('error') }}
-        </div>
-    @endif
+    <div class="flash-error mb-4 bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg shadow-sm text-sm">
+        {{ session('error') }}
+    </div>
+@endif
 
     <div class="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
 
@@ -506,56 +506,68 @@
 
                                 <div class="flex flex-col space-y-2">
 
-                                    <!-- Form Ubah Status -->
-                                    <form
-                                        action="{{ route('admin.peminjaman.updateStatus', $peminjaman->id) }}"
-                                        method="POST"
-                                        class="flex items-center space-x-1"
-                                    >
+                                    <!-- Aksi Status / Pengembalian -->
 
-                                        @csrf
-                                        @method('PUT')
+@if($peminjaman->status === 'diajukan')
 
-                                        <select
-                                            name="status"
-                                            onchange="this.form.submit()"
-                                            class="text-xs font-semibold border-0 rounded-lg px-3 py-2
-                                                focus:outline-none focus:ring-2 focus:ring-blue-500
-                                                cursor-pointer appearance-auto
-                                                @if($peminjaman->status == 'diajukan')
-                                                    bg-yellow-100 text-yellow-800
-                                                @elseif($peminjaman->status == 'dipinjam')
-                                                    bg-blue-100 text-blue-800
-                                                @elseif($peminjaman->status == 'dikembalikan')
-                                                    bg-emerald-100 text-emerald-800
-                                                @else
-                                                    bg-red-100 text-red-800
-                                                @endif"
-                                        >
+    {{-- Peminjaman baru diajukan --}}
+    <form
+        action="{{ route('admin.peminjaman.updateStatus', $peminjaman->id) }}"
+        method="POST"
+        class="w-full"
+    >
 
-                                            <option value="diajukan"
-                                                {{ $peminjaman->status == 'diajukan' ? 'selected' : '' }}>
-                                                Diajukan
-                                            </option>
+        @csrf
+        @method('PUT')
 
-                                            <option value="dipinjam"
-                                                {{ $peminjaman->status == 'dipinjam' ? 'selected' : '' }}>
-                                                Dipinjam
-                                            </option>
+        <select
+            name="status"
+            onchange="this.form.submit()"
+            class="text-xs font-semibold border-0 rounded-lg px-3 py-2
+                   focus:outline-none focus:ring-2 focus:ring-blue-500
+                   cursor-pointer appearance-auto
+                   bg-yellow-100 text-yellow-800 w-full"
+        >
 
-                                            <option value="dikembalikan"
-                                                {{ $peminjaman->status == 'dikembalikan' ? 'selected' : '' }}>
-                                                dikembalikan
-                                            </option>
+            <option value="diajukan" selected>
+                Diajukan
+            </option>
 
-                                            <option value="telat"
-                                                {{ $peminjaman->status == 'telat' ? 'selected' : '' }}>
-                                                Telat
-                                            </option>
+            <option value="dipinjam">
+                Dipinjam
+            </option>
 
-                                        </select>
+        </select>
 
-                                    </form>
+    </form>
+
+
+@elseif($peminjaman->status === 'dipinjam' || $peminjaman->status === 'telat')
+
+    {{-- Peminjaman masih aktif --}}
+    <a
+        href="{{ route('admin.peminjaman.pengembalian.form', $peminjaman->id) }}"
+        class="bg-blue-600 hover:bg-blue-700
+               text-white px-3 py-2 rounded-lg
+               text-xs font-semibold transition
+               text-center w-full"
+    >
+        Buat Pengembalian
+    </a>
+
+
+@elseif($peminjaman->status === 'dikembalikan')
+
+    {{-- Sudah dikembalikan --}}
+    <span
+        class="bg-emerald-100 text-emerald-800
+               px-3 py-2 rounded-lg
+               text-xs font-semibold text-center"
+    >
+        Sudah Dikembalikan
+    </span>
+
+@endif
 
                                     <!-- Tombol Hapus -->
                                     <form

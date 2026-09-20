@@ -93,11 +93,17 @@ class AdminController extends Controller
         })
 
         // =========================
-        // FILTER KONDISI
-        // =========================
-        ->when($kondisi !== null && $kondisi !== '', function ($query) use ($kondisi) {
-            $query->where('status_kondisi', $kondisi);
-        })
+// FILTER KONDISI
+// =========================
+->when($kondisi !== null && $kondisi !== '', function ($query) use ($kondisi) {
+    if ($kondisi === 'Baik') {
+        $query->where('stok_baik', '>', 0);
+    } elseif ($kondisi === 'Rusak') {
+        $query->where('stok_rusak', '>', 0);
+    } elseif ($kondisi === 'Rusak Parah') {
+        $query->where('stok_rusak_parah', '>', 0);
+    }
+})
 
         ->latest()
         ->paginate(10)
@@ -190,53 +196,163 @@ class AdminController extends Controller
      * Memperbarui data alat.
      */
     public function updateAlat(Request $request, $id)
-    {
-        $alat = Alat::findOrFail($id);
+{
+    $alat = Alat::findOrFail($id);
 
-        $request->validate([
-            'nama_alat' => 'required|string|max:255',
-            'kategori_id' => 'required|exists:kategori,id',
-            'stok' => 'required|integer|min:0',
-            'status_kondisi' => 'required|string|max:100',
-            'deskripsi' => 'nullable|string',
-            'gambar' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-        ]);
+    $request->validate([
+        'nama_alat' => 'required|string|max:255',
+        'kategori_id' => 'required|exists:kategori,id',
+        'stok' => 'required|integer|min:0',
+        'status_kondisi' => 'required|string|max:100',
+        'deskripsi' => 'nullable|string',
+        'gambar' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+    ]);
 
-        $data = $request->all();
+    $stokBaru = (int) $request->stok;
 
-        // Upload gambar baru
-        if ($request->hasFile('gambar')) {
+    // Jumlah alat yang sedang berada dalam kondisi rusak
+    $totalRusak =
+        (int) $alat->stok_rusak +
+        (int) $alat->stok_rusak_parah;
 
-            // Hapus gambar lama
-            if (
-                $alat->gambar &&
-                file_exists(public_path($alat->gambar))
-            ) {
-                unlink(public_path($alat->gambar));
-            }
-
-            $file = $request->file('gambar');
-
-            $filename = time() . '_' . $file->getClientOriginalName();
-
-            $file->move(
-                public_path('storage/alat'),
-                $filename
+    /*
+     * Stok baru tidak boleh lebih kecil dari jumlah
+     * alat yang sudah tercatat sebagai rusak.
+     */
+    if ($stokBaru < $totalRusak) {
+        return back()
+            ->withInput()
+            ->with(
+                'error',
+                'Stok tidak boleh lebih kecil dari jumlah alat yang rusak.'
             );
+    }
 
-            $data['gambar'] = 'storage/alat/' . $filename;
+    /*
+     * Stok baik dihitung sebagai sisa dari stok total
+     * setelah dikurangi alat rusak.
+     */
+    $stokBaikBaru = $stokBaru - $totalRusak;
+
+    $data = [
+        'nama_alat' => $request->nama_alat,
+        'kategori_id' => $request->kategori_id,
+        'stok' => $stokBaru,
+        'stok_baik' => $stokBaikBaru,
+        'stok_rusak' => $alat->stok_rusak,
+        'stok_rusak_parah' => $alat->stok_rusak_parah,
+        'status_kondisi' => $request->status_kondisi,
+        'deskripsi' => $request->deskripsi,
+    ];
+
+    // Upload gambar baru
+    if ($request->hasFile('gambar')) {
+
+        // Hapus gambar lama
+        if (
+            $alat->gambar &&
+            file_exists(public_path($alat->gambar))
+        ) {
+            unlink(public_path($alat->gambar));
         }
 
-        $alat->update($data);
+        $file = $request->file('gambar');
+
+        $filename =
+            time() . '_' . $file->getClientOriginalName();
+
+        $file->move(
+            public_path('storage/alat'),
+            $filename
+        );
+
+        $data['gambar'] = 'storage/alat/' . $filename;
+    }
+
+    $alat->update($data);
+
+    return redirect()
+        ->route('admin.alat.index')
+        ->with(
+            'success',
+            'Data alat berhasil diperbarui.'
+        );
+}
+
+/**
+ * Memperbaiki alat yang rusak menjadi kondisi baik.
+ */
+public function perbaikiAlat(Request $request, $id)
+{
+    $alat = Alat::findOrFail($id);
+
+    $request->validate([
+        'kondisi' => 'required|in:Rusak,Rusak Parah',
+        'jumlah' => 'required|integer|min:1',
+    ]);
+
+    $jumlah = $request->jumlah;
+
+    DB::beginTransaction();
+
+    try {
+
+        // Perbaikan dari Rusak Ringan
+        if ($request->kondisi === 'Rusak') {
+
+            if ($alat->stok_rusak < $jumlah) {
+                throw new \Exception(
+                    'Jumlah alat rusak ringan tidak mencukupi.'
+                );
+            }
+
+            $alat->decrement('stok_rusak', $jumlah);
+            $alat->increment('stok_baik', $jumlah);
+
+        }
+
+        // Perbaikan dari Rusak Parah
+        elseif ($request->kondisi === 'Rusak Parah') {
+
+            if ($alat->stok_rusak_parah < $jumlah) {
+                throw new \Exception(
+                    'Jumlah alat rusak parah tidak mencukupi.'
+                );
+            }
+
+            $alat->decrement('stok_rusak_parah', $jumlah);
+            $alat->increment('stok_baik', $jumlah);
+        }
+
+        DB::commit();
+
+        // Catat aktivitas Admin
+        LogAktivitas::create([
+            'user_id' => auth()->id(),
+            'aktivitas' =>
+                "Memperbaiki {$jumlah} pcs alat '{$alat->nama_alat}' " .
+                "dari kondisi {$request->kondisi} menjadi Baik.",
+        ]);
 
         return redirect()
             ->route('admin.alat.index')
             ->with(
                 'success',
-                'Data alat berhasil diperbarui.'
+                "{$jumlah} pcs {$alat->nama_alat} berhasil diperbaiki dan dikembalikan ke kondisi Baik."
+            );
+
+    } catch (\Exception $e) {
+
+        DB::rollBack();
+
+        return redirect()
+            ->route('admin.alat.index')
+            ->with(
+                'error',
+                'Perbaikan alat gagal: ' . $e->getMessage()
             );
     }
-
+}
 
     /**
      * Menghapus alat.
@@ -456,10 +572,37 @@ class AdminController extends Controller
                 'status_request' => 'disetujui',
             ]);
 
-            // Stok baru dikembalikan setelah Admin menyetujui.
-            foreach ($peminjaman->detailPinjams as $detail) {
-                $detail->alat->increment('stok', $detail->jumlah);
-            }
+            // Stok dikembalikan setelah Admin menyetujui.
+// Stok kondisi juga disesuaikan dengan kondisi alat saat dikembalikan.
+foreach ($peminjaman->detailPinjams as $detail) {
+    $alat = $detail->alat;
+    $jumlah = $detail->jumlah;
+
+    // Stok total selalu bertambah karena alat sudah kembali
+    $alat->increment('stok', $jumlah);
+
+    if ($pengembalian->kondisi_kembali === 'Baik') {
+
+        // Alat kembali dalam kondisi baik
+        $alat->increment('stok_baik', $jumlah);
+
+    } elseif ($pengembalian->kondisi_kembali === 'Rusak Ringan') {
+
+        // Alat sebelumnya dianggap berasal dari stok baik
+        $alat->decrement('stok_baik', $jumlah);
+
+        // Pindahkan ke stok rusak ringan
+        $alat->increment('stok_rusak', $jumlah);
+
+    } elseif ($pengembalian->kondisi_kembali === 'Rusak Berat') {
+
+        // Alat sebelumnya dianggap berasal dari stok baik
+        $alat->decrement('stok_baik', $jumlah);
+
+        // Pindahkan ke stok rusak berat
+        $alat->increment('stok_rusak_parah', $jumlah);
+    }
+}
 
             $peminjaman->update([
                 'status' => 'dikembalikan',
@@ -468,14 +611,18 @@ class AdminController extends Controller
             DB::commit();
 
             // Kirim notifikasi kepada Petugas yang mengajukan
-            $pengembalian->petugas->notify(
-                new PengembalianDisetujuiNotification($pengembalian)
-            );
+if ($pengembalian->petugas) {
+    $pengembalian->petugas->notify(
+        new PengembalianDisetujuiNotification($pengembalian)
+    );
+}
 
-            // Kirim notifikasi kepada Peminjam
-            $pengembalian->peminjaman->user->notify(
-                new PengembalianSelesaiNotification($pengembalian)
-            );
+// Kirim notifikasi kepada Peminjam
+if ($pengembalian->peminjaman->user) {
+    $pengembalian->peminjaman->user->notify(
+        new PengembalianSelesaiNotification($pengembalian)
+    );
+}
 
             return redirect()
                 ->route('admin.pengembalian.index')
@@ -492,6 +639,149 @@ class AdminController extends Controller
             );
         }
     }
+
+    public function formPengembalianAdmin($id)
+{
+    $peminjaman = Peminjaman::with([
+        'user',
+        'detailPinjams.alat',
+        'pengembalian'
+    ])->findOrFail($id);
+
+    if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
+        return redirect()
+            ->route('admin.peminjaman.index')
+            ->with(
+                'error',
+                'Peminjaman ini tidak dapat dibuatkan pengembalian.'
+            );
+    }
+
+    if (
+        $peminjaman->pengembalian &&
+        $peminjaman->pengembalian->status_request === 'menunggu'
+    ) {
+        return redirect()
+            ->route('admin.peminjaman.index')
+            ->with(
+                'error',
+                'Pengajuan pengembalian ini masih menunggu proses.'
+            );
+    }
+
+    if (
+        $peminjaman->pengembalian &&
+        $peminjaman->pengembalian->status_request === 'disetujui'
+    ) {
+        return redirect()
+            ->route('admin.peminjaman.index')
+            ->with(
+                'error',
+                'Pengembalian ini sudah disetujui.'
+            );
+    }
+
+    return view(
+        'admin.pengembalian.create-from-peminjaman',
+        compact('peminjaman')
+    );
+}
+
+
+    /**
+ * Admin membuat pengajuan pengembalian secara langsung.
+ *
+ * Digunakan sebagai jalur alternatif apabila Petugas
+ * tidak dapat melakukan proses pengembalian.
+ */
+public function ajukanPengembalianAdmin(Request $request, $peminjamanId)
+{
+    $request->validate([
+        'kondisi_kembali' => 'required|in:Baik,Rusak Ringan,Rusak Berat',
+        'denda_kerusakan' => 'required|integer|min:0',
+    ]);
+
+    DB::beginTransaction();
+
+    try {
+        $peminjaman = Peminjaman::with('pengembalian')
+            ->findOrFail($peminjamanId);
+
+        // Pastikan peminjaman masih aktif
+        if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
+            throw new \Exception(
+                'Peminjaman ini tidak dapat diajukan sebagai pengembalian.'
+            );
+        }
+
+        $pengembalian = $peminjaman->pengembalian;
+
+        // Jika masih menunggu Admin
+        if (
+            $pengembalian &&
+            $pengembalian->status_request === 'menunggu'
+        ) {
+            throw new \Exception(
+                'Pengajuan pengembalian ini masih menunggu proses.'
+            );
+        }
+
+        // Jika sudah disetujui
+        if (
+            $pengembalian &&
+            $pengembalian->status_request === 'disetujui'
+        ) {
+            throw new \Exception(
+                'Pengembalian untuk peminjaman ini sudah disetujui.'
+            );
+        }
+
+        /*
+         * Jika sebelumnya pernah ditolak,
+         * gunakan data pengembalian yang sama.
+         */
+        if ($pengembalian) {
+
+            $pengembalian->update([
+                'tgl_kembali' => now()->toDateString(),
+                'kondisi_kembali' => $request->kondisi_kembali,
+                'denda' => 0,
+                'denda_kerusakan' => $request->denda_kerusakan,
+                'status_request' => 'menunggu',
+            ]);
+} else {
+
+    $pengembalian = Pengembalian::create([
+        'peminjaman_id' => $peminjaman->id,
+        'tgl_kembali' => now()->toDateString(),
+        'kondisi_kembali' => $request->kondisi_kembali,
+        'denda' => 0,
+        'denda_kerusakan' => $request->denda_kerusakan,
+        'petugas_id' => null,
+        'status_request' => 'menunggu',
+    ]);
+}
+
+        DB::commit();
+
+        return redirect()
+            ->route('admin.pengembalian.index')
+            ->with(
+                'success',
+                'Pengajuan pengembalian berhasil dibuat dan menunggu proses persetujuan.'
+            );
+
+    } catch (\Exception $e) {
+
+        DB::rollBack();
+
+        return back()->with(
+            'error',
+            'Pengajuan pengembalian gagal: ' . $e->getMessage()
+        );
+    }
+}
+
 
     /**
      * Menolak pengajuan pengembalian.
@@ -867,10 +1157,11 @@ END")
      * Menampilkan daftar kategori.
      */
     public function indexKategori(Request $request)
-    {
-        $search = $request->input('search');
+{
+    $search = $request->input('search');
 
-        $kategoris = Kategori::when(
+    $kategoris = Kategori::withCount('alat')
+        ->when(
             $search,
             function ($query, $search) {
                 $query->where(
@@ -880,15 +1171,32 @@ END")
                 );
             }
         )
-            ->latest()
-            ->paginate(5)
-            ->withQueryString();
+        ->latest()
+        ->paginate(5)
+        ->withQueryString();
 
-        return view(
-            'admin.kategori.index',
-            compact('kategoris', 'search')
-        );
-    }
+    return view(
+        'admin.kategori.index',
+        compact('kategoris', 'search')
+    );
+}
+
+/**show Kategori */
+public function showKategori($id)
+{
+    $kategori = Kategori::with('alat')
+        ->withCount('alat')
+        ->findOrFail($id);
+
+    $kategori->jumlah_baik = $kategori->alat->sum('stok_baik');
+    $kategori->jumlah_rusak = $kategori->alat->sum('stok_rusak');
+    $kategori->jumlah_rusak_parah = $kategori->alat->sum('stok_rusak_parah');
+
+    return view(
+        'admin.kategori.show',
+        compact('kategori')
+    );
+}
 
 
     /**
@@ -989,6 +1297,19 @@ END")
      */
     public function indexPeminjaman(Request $request)
 {
+    /*
+    |--------------------------------------------------------------------------
+    | Cek otomatis peminjaman yang terlambat
+    |--------------------------------------------------------------------------
+    | Jika status masih dipinjam dan tanggal rencana kembali
+    | sudah lewat dari hari ini, ubah status menjadi telat.
+    */
+    Peminjaman::where('status', 'dipinjam')
+        ->whereDate('tgl_kembali_plan', '<', now()->toDateString())
+        ->update([
+            'status' => 'telat'
+        ]);
+
     $search = $request->input('search');
     $status = $request->input('status');
     $jenisKelamin = $request->input('jenis_kelamin');
@@ -1006,41 +1327,54 @@ END")
                     'like',
                     "%{$search}%"
                 )
-                    ->orWhereHas(
-                        'user',
-                        function ($user) use ($search) {
-                            $user->where(
-                                'name',
-                                'like',
-                                "%{$search}%"
-                            );
-                        }
+                ->orWhereHas('user', function ($user) use ($search) {
+                    $user->where(
+                        'name',
+                        'like',
+                        "%{$search}%"
                     );
+                });
             });
         })
         ->when($status, function ($query, $status) {
             $query->where('status', $status);
         })
         ->when($jenisKelamin, function ($query, $jenisKelamin) {
-    $query->whereHas('user', function ($user) use ($jenisKelamin) {
-        $user->where('jenis_kelamin', $jenisKelamin);
+            $query->whereHas('user', function ($user) use ($jenisKelamin) {
+                $user->where(
+                    'jenis_kelamin',
+                    $jenisKelamin
+                );
             });
         })
-
         ->when($tanggalDari, function ($query, $tanggalDari) {
-            $query->whereDate('tgl_pinjam', '>=', $tanggalDari);
+            $query->whereDate(
+                'tgl_pinjam',
+                '>=',
+                $tanggalDari
+            );
         })
         ->when($tanggalSampai, function ($query, $tanggalSampai) {
-            $query->whereDate('tgl_pinjam', '<=', $tanggalSampai);
+            $query->whereDate(
+                'tgl_pinjam',
+                '<=',
+                $tanggalSampai
+            );
         })
-
         ->latest()
         ->paginate(10)
         ->withQueryString();
 
     return view(
         'admin.peminjaman.index',
-        compact('peminjamans', 'search', 'status', 'jenisKelamin', 'tanggalDari', 'tanggalSampai')
+        compact(
+            'peminjamans',
+            'search',
+            'status',
+            'jenisKelamin',
+            'tanggalDari',
+            'tanggalSampai'
+        )
     );
 }
 

@@ -11,15 +11,26 @@ class Alat extends Model
     protected $table = 'alat';
 
     protected $fillable = [
-        'kategori_id', 'nama_alat', 'stok', 'status_kondisi', 'deskripsi', 'gambar'
-    ];
+    'kategori_id',
+    'nama_alat',
+    'stok',
+    'stok_baik',
+    'stok_rusak',
+    'stok_rusak_parah',
+    'status_kondisi',
+    'deskripsi',
+    'gambar',
+];
 
     protected function casts(): array
-    {
-        return [
-            'stok' => 'integer',
-        ];
-    }
+{
+    return [
+        'stok' => 'integer',
+        'stok_baik' => 'integer',
+        'stok_rusak' => 'integer',
+        'stok_rusak_parah' => 'integer',
+    ];
+}
 
     public function kategori(): BelongsTo
     {

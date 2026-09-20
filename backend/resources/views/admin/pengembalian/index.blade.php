@@ -9,17 +9,17 @@
 
     {{-- Alert Success --}}
     @if(session('success'))
-        <div class="m-4 bg-green-50 border border-green-200 text-green-800 p-3 rounded-lg text-sm">
-            {{ session('success') }}
-        </div>
-    @endif
+    <div class="flash-success mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-lg shadow-sm text-sm">
+        {{ session('success') }}
+    </div>
+@endif
 
     {{-- Alert Error --}}
     @if(session('error'))
-        <div class="m-4 bg-red-50 border border-red-200 text-red-800 p-3 rounded-lg text-sm">
-            {{ session('error') }}
-        </div>
-    @endif
+    <div class="flash-error mb-4 bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg shadow-sm text-sm">
+        {{ session('error') }}
+    </div>
+@endif
 
 
      {{-- Header --}}
@@ -626,7 +626,7 @@
                         {{-- Petugas --}}
                         <td class="px-4 py-4 text-gray-600">
 
-                            {{ $pengembalian->petugas->name }}
+                            {{ $pengembalian->petugas?->name ?? 'Admin' }}
 
                         </td>
 

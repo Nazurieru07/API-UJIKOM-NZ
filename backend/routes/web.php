@@ -15,13 +15,22 @@ Route::get('/', function () {
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/admin/dashboard', [AdminController::class, 'index'])->name('admin.dashboard');
 
-    //ROUTE KATEGORI
-    Route::get('/kategori', [AdminController::class, 'indexKategori'])->name('kategori.index');
-    Route::get('/kategori/create', [AdminController::class, 'createKategori'])->name('kategori.create');
-    Route::post('/kategori', [AdminController::class, 'storeKategori'])->name('kategori.store');
-    Route::get('/kategori/{id}/edit', [AdminController::class, 'editKategori'])->name('kategori.edit');
-    Route::put('/kategori/{id}', [AdminController::class, 'updateKategori'])->name('kategori.update');
-    Route::delete('/kategori/{id}', [AdminController::class, 'destroyKategori'])->name('kategori.destroy');
+    // ROUTE KATEGORI
+
+Route::get('/kategori', [AdminController::class, 'indexKategori'])->name('kategori.index');
+
+Route::get('/kategori/create', [AdminController::class, 'createKategori'])->name('kategori.create');
+
+Route::post('/kategori', [AdminController::class, 'storeKategori'])->name('kategori.store');
+
+Route::get('/kategori/{id}/edit', [AdminController::class, 'editKategori'])->name('kategori.edit');
+
+Route::put('/kategori/{id}', [AdminController::class, 'updateKategori'])->name('kategori.update');
+
+Route::delete('/kategori/{id}', [AdminController::class, 'destroyKategori'])->name('kategori.destroy');
+
+Route::get('/kategori/{id}', [AdminController::class, 'showKategori'])->name('kategori.show');
+
 
    // CRUD Pengembalian
 Route::get('/pengembalian', [AdminController::class, 'indexPengembalian'])
@@ -53,7 +62,15 @@ Route::post('/pengembalian/{id}/setujui', [AdminController::class, 'setujuiPenge
     Route::get('/peminjaman', [AdminController::class, 'indexPeminjaman'])->name('peminjaman.index');
     Route::get('/peminjaman/create', [AdminController::class, 'createPeminjaman'])->name('peminjaman.create');
     Route::post('/peminjaman', [AdminController::class, 'storePeminjaman'])->name('peminjaman.store');
+    // Form pengembalian langsung oleh Admin
+    Route::get('/peminjaman/{id}/pengembalian', [AdminController::class, 'formPengembalianAdmin'])
+        ->name('peminjaman.pengembalian.form');
 
+    // Proses pengajuan pengembalian oleh Admin
+    Route::post('/peminjaman/{id}/pengembalian', [AdminController::class, 'ajukanPengembalianAdmin'])
+        ->name('peminjaman.pengembalian.ajukan');
+
+        
     // Search User & Alat untuk Form Peminjaman
     Route::get('/search/users', [AdminController::class, 'searchUser'])
         ->name('search.users');
@@ -71,6 +88,8 @@ Route::post('/pengembalian/{id}/setujui', [AdminController::class, 'setujuiPenge
     Route::get('/alat/{id}/edit', [AdminController::class, 'editAlat'])->name('alat.edit');
     Route::put('/alat/{id}', [AdminController::class, 'updateAlat'])->name('alat.update');
     Route::delete('/alat/{id}', [AdminController::class, 'destroyAlat'])->name('alat.destroy');
+    Route::post('/alat/{id}/perbaiki', [AdminController::class, 'perbaikiAlat'])
+    ->name('alat.perbaiki');
 
     // CRUD User
     Route::get('/users', [AdminController::class, 'indexUser'])->name('user.index');

@@ -6,10 +6,16 @@
 @section('content')
 
     @if(session('success'))
-        <div class="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-lg shadow-sm text-sm">
-            {{ session('success') }}
-        </div>
-    @endif
+    <div class="flash-success mb-4 bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-lg shadow-sm text-sm">
+        {{ session('success') }}
+    </div>
+@endif
+
+@if(session('error'))
+    <div class="flash-error mb-4 bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg shadow-sm text-sm">
+        {{ session('error') }}
+    </div>
+@endif
 
     <div class="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
         <div class="p-5 border-b border-gray-200 bg-gray-50 flex flex-wrap justify-between items-center gap-4">
@@ -80,7 +86,7 @@
         value="Rusak"
         {{ request('kondisi') == 'Rusak' ? 'selected' : '' }}
     >
-        Rusak
+        Rusak Ringan
     </option>
 
     <option
@@ -157,49 +163,136 @@
                             </td>
 
                             <td class="py-3 px-4 border-b">
-    <span class="px-2.5 py-1 text-xs font-semibold rounded-full
-        @if($alat->status_kondisi === 'Baik')
-            bg-emerald-100 text-emerald-800
-        @elseif($alat->status_kondisi === 'Rusak')
-            bg-amber-100 text-amber-800
-        @elseif($alat->status_kondisi === 'Rusak Parah')
-            bg-red-100 text-red-800
-        @else
-            bg-gray-100 text-gray-800
-        @endif
-    ">
-        {{ $alat->status_kondisi }}
-    </span>
+    <div class="flex flex-wrap items-center gap-2">
+
+        {{-- Kondisi Baik --}}
+        <span class="inline-flex items-center px-2.5 py-1
+                     text-xs font-semibold rounded-full
+                     bg-emerald-50 text-emerald-700">
+            Baik: {{ $alat->stok_baik }}
+        </span>
+
+        {{-- Kondisi Rusak --}}
+        <span class="inline-flex items-center px-2.5 py-1
+                     text-xs font-semibold rounded-full
+                     bg-amber-50 text-amber-700">
+            Rusak Ringan: {{ $alat->stok_rusak }}
+        </span>
+
+        {{-- Kondisi Rusak Parah --}}
+        <span class="inline-flex items-center px-2.5 py-1
+                     text-xs font-semibold rounded-full
+                     bg-red-50 text-red-700">
+            Rusak Parah: {{ $alat->stok_rusak_parah }}
+        </span>
+
+    </div>
 </td>
 
                             <td class="py-3 px-4 border-b">
-                                <div class="flex items-center space-x-2">
+    <div class="flex flex-wrap items-center gap-2">
 
-                                    <a
-                                        href="{{ route('admin.alat.edit', $alat->id) }}"
-                                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-semibold transition"
-                                    >
-                                        Edit
-                                    </a>
+        {{-- Edit --}}
+        <a
+            href="{{ route('admin.alat.edit', $alat->id) }}"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-semibold transition"
+        >
+            Edit
+        </a>
 
-                                    <form
-                                        action="{{ route('admin.alat.destroy', $alat->id) }}"
-                                        method="POST"
-                                        onsubmit="return confirm('Yakin ingin menghapus alat ini?')"
-                                    >
-                                        @csrf
-                                        @method('DELETE')
+        {{-- Perbaiki --}}
+        @if($alat->stok_rusak > 0 || $alat->stok_rusak_parah > 0)
+            <details class="relative">
+                <summary
+                    class="list-none cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded text-xs font-semibold transition"
+                >
+                    Perbaiki
+                </summary>
 
-                                        <button
-                                            type="submit"
-                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition"
-                                        >
-                                            Hapus
-                                        </button>
-                                    </form>
+                <div class="absolute right-0 z-10 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
 
-                                </div>
-                            </td>
+                    <p class="text-sm font-semibold text-gray-800 mb-3">
+                        Perbaiki Alat
+                    </p>
+
+                    <form
+                        action="{{ route('admin.alat.perbaiki', $alat->id) }}"
+                        method="POST"
+                    >
+                        @csrf
+
+                        {{-- Kondisi --}}
+                        <div class="mb-3">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                Kondisi yang diperbaiki
+                            </label>
+
+                            <select
+                                name="kondisi"
+                                required
+                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            >
+                                @if($alat->stok_rusak > 0)
+                                    <option value="Rusak">
+                                        Rusak Ringan ({{ $alat->stok_rusak }} pcs)
+                                    </option>
+                                @endif
+
+                                @if($alat->stok_rusak_parah > 0)
+                                    <option value="Rusak Parah">
+                                        Rusak Parah ({{ $alat->stok_rusak_parah }} pcs)
+                                    </option>
+                                @endif
+                            </select>
+                        </div>
+
+                        {{-- Jumlah --}}
+                        <div class="mb-4">
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">
+                                Jumlah yang diperbaiki
+                            </label>
+
+                            <input
+                                type="number"
+                                name="jumlah"
+                                min="1"
+                                value="1"
+                                required
+                                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            >
+                        </div>
+
+                        <button
+                            type="submit"
+                            onclick="return confirm('Yakin alat ini sudah diperbaiki dan akan dikembalikan ke kondisi Baik?')"
+                            class="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition"
+                        >
+                            Konfirmasi Perbaikan
+                        </button>
+                    </form>
+                </div>
+            </details>
+        @endif
+
+        {{-- Hapus --}}
+        <form
+            action="{{ route('admin.alat.destroy', $alat->id) }}"
+            method="POST"
+            onsubmit="return confirm('Yakin ingin menghapus alat ini?')"
+        >
+            @csrf
+            @method('DELETE')
+
+            <button
+                type="submit"
+                class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition"
+            >
+                Hapus
+            </button>
+        </form>
+
+    </div>
+</td>
 
                         </tr>
                     @empty

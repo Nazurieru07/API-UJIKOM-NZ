@@ -9,6 +9,61 @@
 
     <!-- Memuat Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+    @keyframes flashSuccess {
+        0% {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+
+        15% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        80% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        100% {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+    }
+
+    .flash-success {
+        animation: flashSuccess 4.5s ease-in-out forwards;
+    }
+
+        @keyframes flashError {
+        0% {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+
+        15% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        80% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        100% {
+            opacity: 0;
+            transform: translateY(-30px);
+        }
+    }
+
+    .flash-error {
+    animation: flashError 4.5s ease-in-out forwards;
+}
+
+</style>    
+
 </head>
 
 <body class="bg-gray-100 font-sans antialiased">
