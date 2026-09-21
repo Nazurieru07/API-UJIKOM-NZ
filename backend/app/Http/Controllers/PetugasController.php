@@ -24,24 +24,74 @@ class PetugasController extends Controller
     public function indexPeminjaman(Request $request)
     {
         $search = $request->input('search');
+        $jenisKelamin = $request->input('jenis_kelamin');
+        $tanggalDari = $request->input('tanggal_dari');
+        $tanggalSampai = $request->input('tanggal_sampai');
+        $alatId = $request->input('alat_id');
+        $status = $request->input('status');
 
-        $peminjamans = Peminjaman::with([
-            'user',
-            'detailPinjams.alat'
-        ])
+            $peminjamans = Peminjaman::with([
+                'user',
+                'detailPinjams.alat.kategori'
+            ])
             ->when($search, function ($query, $search) {
-                $query->whereHas('user', function ($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%");
-                });
-            })
-            ->latest()
-            ->paginate(10)
-            ->withQueryString();
+    $query->whereHas('user', function ($q) use ($search) {
+        $q->where('name', 'like', "%{$search}%");
+            });
+        })
+        ->when($jenisKelamin, function ($query, $jenisKelamin) {
+            $query->whereHas('user', function ($q) use ($jenisKelamin) {
+                $q->where('jenis_kelamin', $jenisKelamin);
+            });
+        })
+        ->when($tanggalDari, function ($query, $tanggalDari) {
+            $query->whereDate('tgl_pinjam', '>=', $tanggalDari);
+        })
+        ->when($tanggalSampai, function ($query, $tanggalSampai) {
+            $query->whereDate('tgl_pinjam', '<=', $tanggalSampai);
+        })
+            ->when($alatId, function ($query, $alatId) {
+        $query->whereHas('detailPinjams', function ($q) use ($alatId) {
+            $q->where('alat_id', $alatId);
+        });
+    })
+    ->when($status, function ($query, $status) {
+    $query->where('status', $status);
+})
+
+
+           ->orderByRaw("
+    CASE status
+        WHEN 'diajukan' THEN 1
+        WHEN 'telat' THEN 2
+        WHEN 'dipinjam' THEN 3
+        WHEN 'dikembalikan' THEN 4
+        ELSE 5
+    END
+")
+->latest('created_at')
+->paginate(10)
+->withQueryString();
+
+            $daftarAlat = Alat::select('alat.id', 'alat.nama_alat')
+            ->join('detail_pinjam', 'alat.id', '=', 'detail_pinjam.alat_id')
+            ->distinct()
+            ->orderBy('nama_alat')
+            ->get();
 
         return view(
-            'petugas.peminjaman.index',
-            compact('peminjamans', 'search')
-        );
+    'petugas.peminjaman.index',
+    compact(
+    'peminjamans',
+    'search',
+    'jenisKelamin',
+    'tanggalDari',
+    'tanggalSampai',
+    'alatId',
+    'status',
+    'daftarAlat'
+    )
+    );
     }
 
 

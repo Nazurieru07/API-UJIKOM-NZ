@@ -28,7 +28,7 @@ class AuthController extends Controller
 
             // Redirect berdasarkan Role sesuai matriks Anda
             if ($user->role === 'admin') {
-                return redirect()->route('admin.admin.dashboard');
+                return redirect()->route('admin.dashboard');
             } elseif ($user->role === 'petugas') {
                 return redirect()->route('petugas.peminjaman.index');
             } elseif ($user->role === 'peminjam') {

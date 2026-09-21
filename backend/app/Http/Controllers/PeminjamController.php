@@ -19,7 +19,7 @@ class PeminjamController extends Controller
     public function katalogAlat()
     {
         $alats = Alat::with('kategori')
-            ->where('stok', '>', 0)
+            ->where('stok_baik', '>', 0)
             ->orderBy('nama_alat')
             ->get();
 
@@ -100,11 +100,11 @@ class PeminjamController extends Controller
             // Ambil jumlah berdasarkan ID alat
             $jumlah = (int) $request->jumlah[$alatId];
 
-            // Pastikan jumlah tidak melebihi stok
-            if ($jumlah > $alat->stok) {
+            // Pastikan jumlah tidak melebihi stok baik
+            if ($jumlah > $alat->stok_baik) {
 
                 throw new \Exception(
-                    "Jumlah {$alat->nama_alat} yang dipinjam tidak boleh melebihi stok tersedia ({$alat->stok})."
+                    "Jumlah {$alat->nama_alat} yang dipinjam tidak boleh melebihi stok baik tersedia ({$alat->stok_baik})."
                 );
             }
 

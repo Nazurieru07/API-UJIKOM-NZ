@@ -97,7 +97,7 @@
                         data-nama-detail="{{ $alat->nama_alat }}"
                         data-kategori-detail="{{ $alat->kategori->nama_kategori ?? 'Tanpa Kategori' }}"
                         data-kondisi="{{ $alat->status_kondisi }}"
-                        data-stok="{{ $alat->stok }}"
+                        data-stok="{{ $alat->stok_baik }}"
                         data-deskripsi="{{ $alat->deskripsi ?? 'Tidak ada deskripsi alat.' }}"
                         data-gambar="{{ $alat->gambar ? asset($alat->gambar) : '' }}"
                     >
@@ -156,7 +156,7 @@
                                        bg-white/90 backdrop-blur-sm shadow-sm
                                        text-emerald-600"
                             >
-                                Stok {{ $alat->stok }}
+                                Stok {{ $alat->stok_baik }}
                             </span>
 
                         </div>
@@ -314,7 +314,7 @@
                                     name="jumlah[{{ $alat->id }}]"
                                     value="1"
                                     min="1"
-                                    max="{{ $alat->stok }}"
+                                    max="{{ $alat->stok_baik }}"
                                     class="jumlah-input w-12 h-9 text-center
                                            border-x border-gray-200
                                            focus:outline-none text-sm
@@ -330,7 +330,7 @@
                                            justify-center text-gray-500
                                            hover:bg-gray-100 transition"
                                     data-id="{{ $alat->id }}"
-                                    data-max="{{ $alat->stok }}"
+                                    data-max="{{ $alat->stok_baik }}"
                                 >
                                     +
                                 </button>

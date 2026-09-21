@@ -93,9 +93,9 @@
     @if(auth()->user()->role == 'admin')
 
         {{-- Dashboard --}}
-        <a href="{{ route('admin.admin.dashboard') }}"
+        <a href="{{ route('admin.dashboard') }}"
            class="block px-4 py-2 rounded-lg transition
-           {{ request()->routeIs('admin.admin.dashboard')
+           {{ request()->routeIs('admin.dashboard')
                 ? 'bg-gray-800 text-white font-medium shadow'
                 : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
             Dashboard

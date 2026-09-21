@@ -152,6 +152,21 @@ class AdminController extends Controller
 
         $data = $request->all();
 
+        // Set stok kondisi berdasarkan status_kondisi
+        if ($data['status_kondisi'] === 'Baik') {
+            $data['stok_baik'] = $data['stok'];
+            $data['stok_rusak'] = 0;
+            $data['stok_rusak_parah'] = 0;
+        } elseif ($data['status_kondisi'] === 'Rusak') {
+            $data['stok_baik'] = 0;
+            $data['stok_rusak'] = $data['stok'];
+            $data['stok_rusak_parah'] = 0;
+        } elseif ($data['status_kondisi'] === 'Rusak Parah') {
+            $data['stok_baik'] = 0;
+            $data['stok_rusak'] = 0;
+            $data['stok_rusak_parah'] = $data['stok'];
+        }
+
         // Upload gambar
         if ($request->hasFile('gambar')) {
             $file = $request->file('gambar');
@@ -588,18 +603,14 @@ foreach ($peminjaman->detailPinjams as $detail) {
 
     } elseif ($pengembalian->kondisi_kembali === 'Rusak Ringan') {
 
-        // Alat sebelumnya dianggap berasal dari stok baik
-        $alat->decrement('stok_baik', $jumlah);
-
-        // Pindahkan ke stok rusak ringan
+        // Stok_baik sudah di-decrement saat peminjaman disetujui.
+        // Alat rusak ringan dipindahkan ke stok_rusak.
         $alat->increment('stok_rusak', $jumlah);
 
     } elseif ($pengembalian->kondisi_kembali === 'Rusak Berat') {
 
-        // Alat sebelumnya dianggap berasal dari stok baik
-        $alat->decrement('stok_baik', $jumlah);
-
-        // Pindahkan ke stok rusak berat
+        // Stok_baik sudah di-decrement saat peminjaman disetujui.
+        // Alat rusak berat dipindahkan ke stok_rusak_parah.
         $alat->increment('stok_rusak_parah', $jumlah);
     }
 }
@@ -757,7 +768,7 @@ public function ajukanPengembalianAdmin(Request $request, $peminjamanId)
         'kondisi_kembali' => $request->kondisi_kembali,
         'denda' => 0,
         'denda_kerusakan' => $request->denda_kerusakan,
-        'petugas_id' => null,
+        'petugas_id' => auth()->id(),
         'status_request' => 'menunggu',
     ]);
 }
@@ -810,9 +821,11 @@ public function ajukanPengembalianAdmin(Request $request, $peminjamanId)
             DB::commit();
 
 // Kirim notifikasi kepada Petugas yang mengajukan
-$pengembalian->petugas->notify(
-    new PengembalianDitolakNotification($pengembalian)
-);
+if ($pengembalian->petugas) {
+    $pengembalian->petugas->notify(
+        new PengembalianDitolakNotification($pengembalian)
+    );
+}
 
 return redirect()
     ->route('admin.pengembalian.index')
@@ -876,6 +889,15 @@ return redirect()
                     }
 
                     $alat->decrement('stok', $detail->jumlah);
+
+                    // Sesuaikan stok kondisi sesuai kondisi pengembalian
+                    if ($pengembalian->kondisi_kembali === 'Baik') {
+                        $alat->decrement('stok_baik', $detail->jumlah);
+                    } elseif ($pengembalian->kondisi_kembali === 'Rusak Ringan') {
+                        $alat->decrement('stok_rusak', $detail->jumlah);
+                    } elseif ($pengembalian->kondisi_kembali === 'Rusak Berat') {
+                        $alat->decrement('stok_rusak_parah', $detail->jumlah);
+                    }
                 }
 
                 $peminjaman->update([
@@ -1390,7 +1412,7 @@ public function showKategori($id)
         )->get();
 
         $alats = Alat::where(
-            'stok',
+            'stok_baik',
             '>',
             0
         )->get();
@@ -1453,13 +1475,13 @@ public function showKategori($id)
 
                 $alat = Alat::findOrFail($alatId);
 
-                // Validasi stok
+                // Validasi stok baik
                 if (
-                    $alat->stok <
+                    $alat->stok_baik <
                     $jumlahPinjam
                 ) {
                     throw new \Exception(
-                        "Stok alat '{$alat->nama_alat}' tidak mencukupi."
+                        "Stok alat '{$alat->nama_alat}' dalam kondisi baik tidak mencukupi."
                     );
                 }
 
@@ -1545,16 +1567,22 @@ public function showKategori($id)
                     $alat = $detail->alat;
 
                     if (
-                        $alat->stok <
+                        $alat->stok_baik <
                         $detail->jumlah
                     ) {
                         throw new \Exception(
-                            "Stok alat '{$alat->nama_alat}' tidak mencukupi untuk dipinjam."
+                            "Stok alat '{$alat->nama_alat}' dalam kondisi baik tidak mencukupi untuk dipinjam."
                         );
                     }
 
                     $alat->decrement(
                         'stok',
+                        $detail->jumlah
+                    );
+
+                    // Kurangi juga stok kondisi baik
+                    $alat->decrement(
+                        'stok_baik',
                         $detail->jumlah
                     );
                 }
@@ -1620,6 +1648,12 @@ public function showKategori($id)
 
                 $detail->alat->increment(
                     'stok',
+                    $detail->jumlah
+                );
+
+                // Kembalikan juga stok_baik
+                $detail->alat->increment(
+                    'stok_baik',
                     $detail->jumlah
                 );
             }
@@ -1694,7 +1728,7 @@ public function showKategori($id)
         }
 
         $alats = Alat::where(
-            'stok',
+            'stok_baik',
             '>',
             0
         )
@@ -1707,7 +1741,7 @@ public function showKategori($id)
             ->get([
                 'id',
                 'nama_alat',
-                'stok'
+                'stok_baik'
             ]);
 
         return response()->json($alats);

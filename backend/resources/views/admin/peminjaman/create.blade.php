@@ -314,7 +314,7 @@
                             </div>
 
                             <div class="text-xs text-gray-500">
-                                Stok tersedia: ${alat.stok}
+                                Stok tersedia: ${alat.stok_baik}
                             </div>
                         `;
 
@@ -328,7 +328,7 @@
                                 alat.id;
 
                             selectedAlat.textContent =
-                                `✓ Dipilih: ${alat.nama_alat} | Stok: ${alat.stok}`;
+                                `✓ Dipilih: ${alat.nama_alat} | Stok: ${alat.stok_baik}`;
 
                             results.classList.add('hidden');
 
