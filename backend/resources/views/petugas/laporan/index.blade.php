@@ -313,7 +313,11 @@
                             {{-- Petugas --}}
                             <td class="px-3 py-3 border">
 
-                                {{ $pengembalian->petugas->name ?? 'Petugas Dihapus' }}
+                                @if($pengembalian->petugas)
+                                    {{ $pengembalian->petugas->name }}
+                                @else
+                                    Admin
+                                @endif
 
                             </td>
 

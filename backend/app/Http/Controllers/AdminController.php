@@ -376,6 +376,80 @@ public function perbaikiAlat(Request $request, $id)
 }
 
     /**
+     * Mengubah kondisi sebagian alat (per pcs).
+     *
+     * Memindahkan jumlah tertentu dari satu kondisi ke kondisi lain.
+     * Contoh: 2 pcs dari Baik -> Rusak Ringan.
+     */
+    public function ubahKondisiAlat(Request $request, $id)
+    {
+        $alat = Alat::findOrFail($id);
+
+        $request->validate([
+            'kondisi_asal' => 'required|in:Baik,Rusak,Rusak Parah',
+            'kondisi_tujuan' => 'required|in:Baik,Rusak,Rusak Parah|different:kondisi_asal',
+            'jumlah' => 'required|integer|min:1',
+        ]);
+
+        $kolom = [
+            'Baik' => 'stok_baik',
+            'Rusak' => 'stok_rusak',
+            'Rusak Parah' => 'stok_rusak_parah',
+        ];
+
+        $asal = $kolom[$request->kondisi_asal];
+        $tujuan = $kolom[$request->kondisi_tujuan];
+        $jumlah = (int) $request->jumlah;
+
+        DB::beginTransaction();
+
+        try {
+            if ($alat->{$asal} < $jumlah) {
+                throw new \Exception(
+                    "Jumlah alat dengan kondisi {$request->kondisi_asal} tidak mencukupi (tersedia {$alat->{$asal}} pcs)."
+                );
+            }
+
+            $alat->decrement($asal, $jumlah);
+            $alat->increment($tujuan, $jumlah);
+
+            // Update status_kondisi utama sesuai kondisi mayoritas
+            $alat->refresh();
+
+            $kondisiMayoritas = collect($kolom)
+                ->map(fn ($kol, $nama) => ['nama' => $nama, 'jumlah' => $alat->{$kol}])
+                ->sortByDesc('jumlah')
+                ->first()['nama'];
+
+            $alat->status_kondisi = $kondisiMayoritas;
+            $alat->saveQuietly();
+
+            DB::commit();
+
+            LogAktivitas::create([
+                'user_id' => auth()->id(),
+                'aktivitas' =>
+                    "Mengubah {$jumlah} pcs alat '{$alat->nama_alat}' dari kondisi {$request->kondisi_asal} menjadi {$request->kondisi_tujuan}.",
+            ]);
+
+            return redirect()
+                ->route('admin.alat.index')
+                ->with(
+                    'success',
+                    "{$jumlah} pcs {$alat->nama_alat} berhasil diubah dari kondisi {$request->kondisi_asal} menjadi {$request->kondisi_tujuan}."
+                );
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return back()->with(
+                'error',
+                'Gagal mengubah kondisi alat: ' . $e->getMessage()
+            );
+        }
+    }
+
+    /**
      * Menghapus alat.
      */
     public function destroyAlat($id)

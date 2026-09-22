@@ -200,6 +200,105 @@
             Edit
         </a>
 
+        {{-- Ubah Kondisi per pcs --}}
+        <details class="relative">
+            <summary
+                class="list-none cursor-pointer bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition"
+            >
+                Ubah Kondisi
+            </summary>
+
+            <div class="absolute right-0 z-10 mt-2 w-72 bg-white border border-gray-200 rounded-lg shadow-lg p-4">
+
+                <p class="text-sm font-semibold text-gray-800 mb-3">
+                    Ubah Kondisi Alat (per pcs)
+                </p>
+
+                <div class="text-xs text-gray-600 mb-3 space-y-1">
+                    <p>Baik: <span class="font-semibold">{{ $alat->stok_baik }}</span> pcs</p>
+                    <p>Rusak Ringan: <span class="font-semibold">{{ $alat->stok_rusak }}</span> pcs</p>
+                    <p>Rusak Parah: <span class="font-semibold">{{ $alat->stok_rusak_parah }}</span> pcs</p>
+                </div>
+
+                <form
+                    action="{{ route('admin.alat.ubahKondisi', $alat->id) }}"
+                    method="POST"
+                >
+                    @csrf
+
+                    {{-- Kondisi Asal --}}
+                    <div class="mb-3">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">
+                            Dari Kondisi
+                        </label>
+
+                        <select
+                            name="kondisi_asal"
+                            required
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        >
+                            <option value="">Pilih kondisi asal</option>
+
+                            @if($alat->stok_baik > 0)
+                                <option value="Baik">Baik ({{ $alat->stok_baik }} pcs)</option>
+                            @endif
+
+                            @if($alat->stok_rusak > 0)
+                                <option value="Rusak">Rusak Ringan ({{ $alat->stok_rusak }} pcs)</option>
+                            @endif
+
+                            @if($alat->stok_rusak_parah > 0)
+                                <option value="Rusak Parah">Rusak Parah ({{ $alat->stok_rusak_parah }} pcs)</option>
+                            @endif
+                        </select>
+                    </div>
+
+                    {{-- Kondisi Tujuan --}}
+                    <div class="mb-3">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">
+                            Menjadi Kondisi
+                        </label>
+
+                        <select
+                            name="kondisi_tujuan"
+                            required
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        >
+                            <option value="">Pilih kondisi tujuan</option>
+
+                            <option value="Baik">Baik</option>
+                            <option value="Rusak">Rusak Ringan</option>
+                            <option value="Rusak Parah">Rusak Parah</option>
+                        </select>
+                    </div>
+
+                    {{-- Jumlah --}}
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">
+                            Jumlah (pcs)
+                        </label>
+
+                        <input
+                            type="number"
+                            name="jumlah"
+                            min="1"
+                            value="1"
+                            required
+                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        >
+                    </div>
+
+                    <button
+                        type="submit"
+                        onclick="return confirm('Yakin ingin mengubah kondisi alat ini? Stok kondisi akan langsung diperbarui.')"
+                        class="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-xs font-semibold transition"
+                    >
+                        Konfirmasi Ubah Kondisi
+                    </button>
+                </form>
+            </div>
+        </details>
+
         {{-- Perbaiki --}}
         @if($alat->stok_rusak > 0 || $alat->stok_rusak_parah > 0)
             <details class="relative">

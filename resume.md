@@ -7,6 +7,31 @@ Sesi: Audit ulang + penyempurnaan fitur + perbaikan bug
 
 ## Yang Ditambahkan
 
+### 2. Edit Kondisi Alat per pcs (Role Admin)
+
+Menu alat sekarang punya tombol **"Ubah Kondisi"** (dropdown, warna amber).
+Admin bisa memindahkan jumlah pcs tertentu dari satu kondisi ke kondisi lain:
+
+- Pilih kondisi asal (Baik / Rusak Ringan / Rusak Parah)
+- Pilih kondisi tujuan
+- Masukkan jumlah pcs
+- Stok kondisi langsung diperbarui, `status_kondisi` utama ikut
+  disesuaikan berdasarkan kondisi mayoritas
+- Tercatat di log aktivitas
+
+Contoh: 1 pcs dari Baik -> Rusak Ringan maka badge di index berubah.
+
+File yang diubah:
+
+- `backend/app/Http/Controllers/AdminController.php` — method baru `ubahKondisiAlat`
+- `backend/routes/web.php` — route `admin.alat.ubahKondisi`
+- `backend/resources/views/admin/alat/index.blade.php` — tombol & form
+
+Validasi: kondisi asal & tujuan harus berbeda (`different`), jumlah harus
+cukup, semua enum terbatas pada 3 nilai resmi.
+
+---
+
 ### 1. Filter pada menu Pemantauan Pengembalian (Role Petugas)
 
 Sebelumnya menu ini hanya memiliki pencarian nama peminjam. Sekarang ditambahkan:
@@ -30,6 +55,17 @@ Kolom Alat pada tabel juga sekarang menampilkan badge nama kategori tiap alat.
 ---
 
 ## Yang Diperbaiki (Hasil Audit)
+
+### Bug Laporan: "Petugas Dihapus" padahal yang proses Admin
+
+- Lokasi: `resources/views/petugas/laporan/index.blade.php` &
+  `resources/views/petugas/laporan/pdf.blade.php`
+- Masalah: pengembalian yang dibuat lewat alur Admin punya `petugas_id`
+  NULL (memang sengaja, kolom di-nullable). View menulis
+  `$pengembalian->petugas->name ?? 'Petugas Dihapus'` jadi yang tampil
+  teks menyesatkan.
+- Perbaikan: kalau `petugas_id` NULL, tampilkan **"Admin"** karena yang
+  mempros memang role admin.
 
 ### Kritis (Korupsi Data)
 
@@ -110,6 +146,23 @@ Dijalankan di container Docker yang sedang running (`laravel-api`):
   sudah `dipinjam` → stok aman, data test di-rollback.
 - Semua 6 class notifikasi terbukti `implements ShouldQueue`.
 - Stok alat & data peminjaman test kembali bersih setelah verifikasi.
+
+### Verifikasi Fitur Baru (Sesi 2)
+
+- Tombol "Ubah Kondisi" tampil di semua baris alat di index admin.
+- Submit 1 pcs Baik -> Rusak Ringan: `stok_baik` 5->4, `stok_rusak`
+  3->4, flash message muncul. Sesuai harapan.
+- Submit 999 pcs (melebihi stok): ditolak, stok tidak berubah, error
+  jelas.
+- Kondisi asal == tujuan: ditolak validasi `different`.
+- Kondisi asal kosong: ditolak validasi `required`.
+- `status_kondisi` utama ikut berubah sesuai kondisi mayoritas
+  (terbukti: setelah pindah 3 pcs ke Rusak Parah, status jadi `Rusak`).
+- Log aktivitas tercatat: "Mengubah 3 pcs alat 'Teleporter' dari
+  kondisi Baik menjadi Rusak Parah."
+- Stok dikembalikan ke kondisi semula setelah test.
+- Laporan petugas: 3 baris yang `petugas_id` NULL sekarang menampilkan
+  "Admin" (sebelumnya "Petugas Dihapus"). PDF juga sudah diperbaiki.
 
 ---
 

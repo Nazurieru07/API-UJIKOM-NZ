@@ -90,6 +90,9 @@ Route::post('/pengembalian/{id}/setujui', [AdminController::class, 'setujuiPenge
     Route::post('/alat/{id}/perbaiki', [AdminController::class, 'perbaikiAlat'])
     ->name('alat.perbaiki');
 
+    Route::post('/alat/{id}/ubah-kondisi', [AdminController::class, 'ubahKondisiAlat'])
+    ->name('alat.ubahKondisi');
+
     // CRUD User
     Route::get('/users', [AdminController::class, 'indexUser'])->name('user.index');
     Route::get('/users/create', [AdminController::class, 'createUser'])->name('user.create');

@@ -246,7 +246,11 @@
                     </td>
 
                     <td>
-                        {{ $pengembalian->petugas->name ?? 'Petugas Dihapus' }}
+                        @if($pengembalian->petugas)
+                            {{ $pengembalian->petugas->name }}
+                        @else
+                            Admin
+                        @endif
                     </td>
                 </tr>
 
