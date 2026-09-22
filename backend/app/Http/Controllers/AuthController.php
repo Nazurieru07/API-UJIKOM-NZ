@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -21,7 +23,19 @@ class AuthController extends Controller
             'password' => ['required'],
         ]);
 
+        // Batasi percobaan login untuk mencegah brute force
+        $key = Str::lower($request->input('email')) . '|' . $request->ip();
+
+        if (RateLimiter::tooManyAttempts($key, 5)) {
+            $seconds = RateLimiter::availableIn($key);
+
+            return back()->withErrors([
+                'email' => 'Terlalu banyak percobaan login. Coba lagi dalam ' . $seconds . ' detik.',
+            ])->onlyInput('email');
+        }
+
         if (Auth::attempt($credentials)) {
+            RateLimiter::clear($key);
             $request->session()->regenerate();
 
             $user = Auth::user();
@@ -41,6 +55,8 @@ class AuthController extends Controller
                 ->route('login')
                 ->with('error', 'Role tidak dikenali.');
         }
+
+        RateLimiter::hit($key, 60);
 
         return back()->withErrors([
             'email' => 'Email atau password salah.',

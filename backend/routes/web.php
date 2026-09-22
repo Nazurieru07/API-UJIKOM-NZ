@@ -5,7 +5,6 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\PetugasController;
 use App\Http\Controllers\PeminjamController;
 use App\Http\Controllers\AuthController;
-use Illuminate\Support\Facades\DB;
 
 Route::get('/', function () {
     return view('welcome');
@@ -157,21 +156,7 @@ Route::post('/logout', [AuthController::class, 'logout'])
     ->name('logout')
     ->middleware('auth');
 
-Route::get('/debug-db', function () {
-    return response()->json([
-        'database' => DB::selectOne("SELECT DATABASE() AS db")->db,
-        'hostname' => DB::selectOne("SELECT @@hostname AS host")->host,
-        'columns' => DB::select("SHOW COLUMNS FROM pengembalian"),
-    ]);
-});
 
-Route::get('/who-am-i', function () {
-    return response()->json([
-        'php' => PHP_VERSION,
-        'hostname' => gethostname(),
-        'time' => now()->toDateTimeString(),
-    ]);
-});
 
 Route::post('/notifications/read-all', function () {
     auth()->user()->unreadNotifications->markAsRead();

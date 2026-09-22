@@ -18,6 +18,80 @@
             Data peminjaman yang saat ini masih dalam status dipinjam.
         </p>
 
+        {{-- Filter --}}
+        <form
+            action="{{ route('petugas.pengembalian.index') }}"
+            method="GET"
+            class="mt-4 flex flex-col md:flex-row flex-wrap gap-2 w-full"
+        >
+
+            {{-- Pencarian --}}
+            <input
+                type="text"
+                name="search"
+                value="{{ request('search') }}"
+                placeholder="Cari nama peminjam..."
+                class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+
+            {{-- Kategori --}}
+            <select
+                name="kategori_id"
+                class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+                <option value="">Semua Kategori</option>
+
+                @foreach($kategoris as $kategori)
+                    <option
+                        value="{{ $kategori->id }}"
+                        {{ (string) request('kategori_id') === (string) $kategori->id ? 'selected' : '' }}
+                    >
+                        {{ $kategori->nama_kategori }}
+                    </option>
+                @endforeach
+            </select>
+
+            {{-- Tanggal Dari --}}
+            <input
+                type="date"
+                name="tanggal_dari"
+                value="{{ request('tanggal_dari') }}"
+                class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+
+            {{-- Tanggal Sampai --}}
+            <input
+                type="date"
+                name="tanggal_sampai"
+                value="{{ request('tanggal_sampai') }}"
+                class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+
+            {{-- Tombol Cari --}}
+            <button
+                type="submit"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition"
+            >
+                Cari
+            </button>
+
+            {{-- Reset --}}
+            @if(request()->hasAny([
+                'search',
+                'kategori_id',
+                'tanggal_dari',
+                'tanggal_sampai'
+            ]))
+                <a
+                    href="{{ route('petugas.pengembalian.index') }}"
+                    class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm flex items-center justify-center transition"
+                >
+                    Reset
+                </a>
+            @endif
+
+        </form>
+
     </div>
 
 
@@ -74,7 +148,6 @@
 
             </thead>
 
-
             <tbody class="divide-y divide-gray-200">
 
                 @forelse($peminjamans as $peminjaman)
@@ -87,7 +160,6 @@
                             {{ $peminjaman->user->name ?? 'User Dihapus' }}
 
                         </td>
-
 
                         {{-- Alat --}}
                         <td class="px-4 py-4">
@@ -104,6 +176,12 @@
                                             {{ $detail->jumlah }} pcs
                                         </span>
 
+                                        @if($detail->alat && $detail->alat->kategori)
+                                            <span class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
+                                                {{ $detail->alat->kategori->nama_kategori }}
+                                            </span>
+                                        @endif
+
                                     </li>
 
                                 @endforeach
@@ -112,7 +190,6 @@
 
                         </td>
 
-
                         {{-- Tanggal Pinjam --}}
                         <td class="px-4 py-4 text-gray-600">
 
@@ -120,14 +197,12 @@
 
                         </td>
 
-
                         {{-- Rencana Kembali --}}
                         <td class="px-4 py-4 text-gray-600">
 
                             {{ $peminjaman->tgl_kembali_plan->format('d-m-Y') }}
 
                         </td>
-
 
                         {{-- Status --}}
                         <td class="px-4 py-4 text-center">
@@ -137,7 +212,6 @@
                             </span>
 
                         </td>
-
 
                         {{-- Aksi --}}
 <td class="px-4 py-4 text-center">
@@ -175,7 +249,6 @@
                 </option>
 
             </select>
-
 
             {{-- Denda Kerusakan --}}
             <input

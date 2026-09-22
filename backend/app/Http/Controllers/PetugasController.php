@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Alat;
+use App\Models\Kategori;
 use App\Models\Peminjaman;
 use App\Models\Pengembalian;
 use App\Notifications\PeminjamanDisetujuiNotification;
@@ -104,7 +105,15 @@ class PetugasController extends Controller
 
         try {
             $peminjaman = Peminjaman::with('detailPinjams')
+                ->lockForUpdate()
                 ->findOrFail($id);
+
+            // Pastikan pengajuan memang belum diproses
+            if ($peminjaman->status !== 'diajukan') {
+                throw new \Exception(
+                    'Pengajuan peminjaman ini sudah diproses.'
+                );
+            }
 
             $peminjaman->update([
                 'status' => 'dipinjam'
@@ -216,10 +225,13 @@ return redirect()
     public function indexPengembalian(Request $request)
     {
         $search = $request->input('search');
+        $kategoriId = $request->input('kategori_id');
+        $tanggalDari = $request->input('tanggal_dari');
+        $tanggalSampai = $request->input('tanggal_sampai');
 
         $peminjamans = Peminjaman::with([
             'user',
-            'detailPinjams.alat',
+            'detailPinjams.alat.kategori',
             'pengembalian'
         ])
             ->whereIn('status', ['dipinjam', 'telat'])
@@ -234,12 +246,26 @@ return redirect()
                     $q->where('name', 'like', "%{$search}%");
                 });
             })
+            ->when($kategoriId, function ($query, $kategoriId) {
+                $query->whereHas('detailPinjams.alat', function ($q) use ($kategoriId) {
+                    $q->where('kategori_id', $kategoriId);
+                });
+            })
+            ->when($tanggalDari, function ($query, $tanggalDari) {
+                $query->whereDate('tgl_pinjam', '>=', $tanggalDari);
+            })
+            ->when($tanggalSampai, function ($query, $tanggalSampai) {
+                $query->whereDate('tgl_pinjam', '<=', $tanggalSampai);
+            })
             ->latest('tgl_pinjam')
             ->get();
 
+        // Daftar kategori untuk dropdown filter
+        $kategoris = Kategori::orderBy('nama_kategori')->get();
+
         return view(
             'petugas.pengembalian.index',
-            compact('peminjamans', 'search')
+            compact('peminjamans', 'search', 'kategoriId', 'tanggalDari', 'tanggalSampai', 'kategoris')
         );
     }
 

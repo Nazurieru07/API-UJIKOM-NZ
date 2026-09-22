@@ -145,12 +145,18 @@ class AdminController extends Controller
             'nama_alat' => 'required|string|max:255',
             'kategori_id' => 'required|exists:kategori,id',
             'stok' => 'required|integer|min:0',
-            'status_kondisi' => 'required|string|max:100',
+            'status_kondisi' => 'required|in:Baik,Rusak,Rusak Parah',
             'deskripsi' => 'nullable|string',
             'gambar' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
 
-        $data = $request->all();
+        $data = $request->only([
+            'nama_alat',
+            'kategori_id',
+            'stok',
+            'status_kondisi',
+            'deskripsi',
+        ]);
 
         // Set stok kondisi berdasarkan status_kondisi
         if ($data['status_kondisi'] === 'Baik') {
@@ -218,7 +224,7 @@ class AdminController extends Controller
         'nama_alat' => 'required|string|max:255',
         'kategori_id' => 'required|exists:kategori,id',
         'stok' => 'required|integer|min:0',
-        'status_kondisi' => 'required|string|max:100',
+        'status_kondisi' => 'required|in:Baik,Rusak,Rusak Parah',
         'deskripsi' => 'nullable|string',
         'gambar' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
     ]);
@@ -890,12 +896,29 @@ return redirect()
 
                     $alat->decrement('stok', $detail->jumlah);
 
-                    // Sesuaikan stok kondisi sesuai kondisi pengembalian
+                    // Sesuaikan stok kondisi sesuai kondisi pengembalian.
+                    // Jika alat sudah diperbaiki, stok kondisi bisa kurang
+                    // dari jumlah yang dikembalikan, jadi cek dulu.
                     if ($pengembalian->kondisi_kembali === 'Baik') {
+                        if ($alat->stok_baik < $detail->jumlah) {
+                            throw new \Exception(
+                                "Stok baik alat '{$alat->nama_alat}' tidak mencukupi untuk menghapus data pengembalian."
+                            );
+                        }
                         $alat->decrement('stok_baik', $detail->jumlah);
                     } elseif ($pengembalian->kondisi_kembali === 'Rusak Ringan') {
+                        if ($alat->stok_rusak < $detail->jumlah) {
+                            throw new \Exception(
+                                "Stok rusak alat '{$alat->nama_alat}' tidak mencukupi untuk menghapus data pengembalian."
+                            );
+                        }
                         $alat->decrement('stok_rusak', $detail->jumlah);
                     } elseif ($pengembalian->kondisi_kembali === 'Rusak Berat') {
+                        if ($alat->stok_rusak_parah < $detail->jumlah) {
+                            throw new \Exception(
+                                "Stok rusak parah alat '{$alat->nama_alat}' tidak mencukupi untuk menghapus data pengembalian."
+                            );
+                        }
                         $alat->decrement('stok_rusak_parah', $detail->jumlah);
                     }
                 }
@@ -1076,6 +1099,7 @@ END")
             'role' => 'required|in:admin,petugas,peminjam',
             'no_hp' => 'nullable|string|max:20',
             'jenis_kelamin' => 'nullable|in:Laki-laki,Perempuan',
+            'password' => 'nullable|string|min:8',
             'foto_profile' =>
                 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
@@ -1146,6 +1170,21 @@ END")
         return redirect()
             ->route('admin.user.index')
             ->with('error', 'Anda tidak dapat menghapus akun sendiri.');
+    }
+
+    // User yang masih memiliki peminjaman aktif tidak boleh dihapus
+    // karena data peminjaman & stok alat akan ikut terhapus (cascade).
+    $peminjamanAktif = Peminjaman::where('user_id', $user->id)
+        ->whereIn('status', ['diajukan', 'dipinjam', 'telat'])
+        ->exists();
+
+    if ($peminjamanAktif) {
+        return redirect()
+            ->route('admin.user.index')
+            ->with(
+                'error',
+                'User ini masih memiliki peminjaman aktif. Selesaikan atau hapus data peminjamannya terlebih dahulu.'
+            );
     }
 
     // Hapus foto profil
