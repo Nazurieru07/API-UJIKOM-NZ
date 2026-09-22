@@ -166,13 +166,30 @@ Dijalankan di container Docker yang sedang running (`laravel-api`):
 
 ---
 
+## Test Suite
+
+Folder `tests/` sudah dibuat. 18 test, 53 assertion, semua pass.
+
+- `tests/Unit/AlatModelTest.php` - konsistensi stok & status kondisi
+- `tests/Feature/AlatKondisiTest.php` - fitur ubah kondisi per pcs,
+  validasi (jumlah berlebih, kondisi sama), guard double approve
+- `tests/Feature/AuthRoleTest.php` - redirect per role & middleware
+- `tests/Feature/LoginThrottleTest.php` - RateLimiter 5x gagal
+- `tests/Feature/LaporanPengembalianTest.php` - laporan tampilkan
+  Admin saat petugas_id NULL, hanya tampilkan yang disetujui
+- Factory: `AlatFactory`, `KategoriFactory` dibuat; `UserFactory`
+  dibersihkan (kolom `email_verified_at` & `remember_token` tidak
+  ada di schema)
+- Model `User`, `Alat`, `Kategori` pakai `HasFactory`
+
+Jalankan: `docker exec laravel-api php artisan test`
+
+---
+
 ## Yang Masih Belum Dikerjakan
 
 - `indexPeminjaman` masih melakukan mass update `dipinjam` → `telat`
   lewat query builder (skip observer, log tidak konsisten).
-- Folder `tests/` belum ada (klaim "28/28 passed" di commit sebelumnya
-  tidak terbukti ada test-nya di repo maupun git history).
-- `APP_DEBUG=true` di `.env` — pastikan di-set `false` untuk production.
 - Queue worker belum dijalankan otomatis. Notifikasi masuk ke table
   `jobs` tapi butuh `php artisan queue:work` (atau supervisor) untuk
   memprosesnya.
