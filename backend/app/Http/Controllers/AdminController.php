@@ -145,7 +145,6 @@ class AdminController extends Controller
             'nama_alat' => 'required|string|max:255',
             'kategori_id' => 'required|exists:kategori,id',
             'stok' => 'required|integer|min:0',
-            'status_kondisi' => 'required|in:Baik,Rusak,Rusak Parah',
             'deskripsi' => 'nullable|string',
             'gambar' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
         ]);
@@ -154,24 +153,23 @@ class AdminController extends Controller
             'nama_alat',
             'kategori_id',
             'stok',
-            'status_kondisi',
             'deskripsi',
         ]);
 
-        // Set stok kondisi berdasarkan status_kondisi
-        if ($data['status_kondisi'] === 'Baik') {
-            $data['stok_baik'] = $data['stok'];
-            $data['stok_rusak'] = 0;
-            $data['stok_rusak_parah'] = 0;
-        } elseif ($data['status_kondisi'] === 'Rusak') {
-            $data['stok_baik'] = 0;
-            $data['stok_rusak'] = $data['stok'];
-            $data['stok_rusak_parah'] = 0;
-        } elseif ($data['status_kondisi'] === 'Rusak Parah') {
-            $data['stok_baik'] = 0;
-            $data['stok_rusak'] = 0;
-            $data['stok_rusak_parah'] = $data['stok'];
-        }
+        /*
+        |----------------------------------------------------------------------
+        | Alat baru selalu masuk kondisi Baik. Status_kondisi tidak boleh
+        | dipilih manual - ditentukan oleh jumlah stok per kondisi.
+        |----------------------------------------------------------------------
+        */
+        $data['stok_baik'] = $data['stok'];
+        $data['stok_rusak'] = 0;
+        $data['stok_rusak_parah'] = 0;
+        $data['status_kondisi'] = Alat::kondisiMayoritas(
+            (int) $data['stok_baik'],
+            (int) $data['stok_rusak'],
+            (int) $data['stok_rusak_parah']
+        );
 
         // Upload gambar
         if ($request->hasFile('gambar')) {
@@ -224,7 +222,6 @@ class AdminController extends Controller
         'nama_alat' => 'required|string|max:255',
         'kategori_id' => 'required|exists:kategori,id',
         'stok' => 'required|integer|min:0',
-        'status_kondisi' => 'required|in:Baik,Rusak,Rusak Parah',
         'deskripsi' => 'nullable|string',
         'gambar' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
     ]);
@@ -262,9 +259,20 @@ class AdminController extends Controller
         'stok_baik' => $stokBaikBaru,
         'stok_rusak' => $alat->stok_rusak,
         'stok_rusak_parah' => $alat->stok_rusak_parah,
-        'status_kondisi' => $request->status_kondisi,
         'deskripsi' => $request->deskripsi,
     ];
+
+    /*
+    |----------------------------------------------------------------------
+    | status_kondisi dihitung dari mayoritas stok kondisi,
+    | bukan diinput manual admin.
+    |----------------------------------------------------------------------
+    */
+    $data['status_kondisi'] = Alat::kondisiMayoritas(
+        (int) $data['stok_baik'],
+        (int) $data['stok_rusak'],
+        (int) $data['stok_rusak_parah']
+    );
 
     // Upload gambar baru
     if ($request->hasFile('gambar')) {
@@ -416,12 +424,11 @@ public function perbaikiAlat(Request $request, $id)
             // Update status_kondisi utama sesuai kondisi mayoritas
             $alat->refresh();
 
-            $kondisiMayoritas = collect($kolom)
-                ->map(fn ($kol, $nama) => ['nama' => $nama, 'jumlah' => $alat->{$kol}])
-                ->sortByDesc('jumlah')
-                ->first()['nama'];
-
-            $alat->status_kondisi = $kondisiMayoritas;
+            $alat->status_kondisi = Alat::kondisiMayoritas(
+                (int) $alat->stok_baik,
+                (int) $alat->stok_rusak,
+                (int) $alat->stok_rusak_parah
+            );
             $alat->saveQuietly();
 
             DB::commit();

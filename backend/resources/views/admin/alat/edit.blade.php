@@ -65,39 +65,23 @@
 
             <div>
     <label class="block text-gray-700 text-sm font-semibold mb-2">
-        Status Kondisi
+        Kondisi Saat Ini (otomatis)
     </label>
 
-    <select
-        name="status_kondisi"
-        required
-        class="w-full px-3 py-2 border border-gray-300 rounded-lg
-               focus:outline-none focus:ring-2 focus:ring-blue-500"
+    <input
+        type="text"
+        value="{{ $alat->status_kondisi }}"
+        disabled
+        class="w-full px-3 py-2 border border-gray-200 bg-gray-100 text-gray-600 rounded-lg cursor-not-allowed"
     >
-        <option value="Baik"
-            {{ old('status_kondisi', $alat->status_kondisi) === 'Baik' ? 'selected' : '' }}>
-            Baik
-        </option>
 
-        <option value="Rusak"
-            {{ old('status_kondisi', $alat->status_kondisi) === 'Rusak' ? 'selected' : '' }}>
-            Rusak
-        </option>
-
-        <option value="Rusak Parah"
-            {{ old('status_kondisi', $alat->status_kondisi) === 'Rusak Parah' ? 'selected' : '' }}>
-            Rusak Parah
-        </option>
-
-        <option value="Kosong"
-            {{ old('status_kondisi', $alat->status_kondisi) === 'Kosong' ? 'selected' : '' }}>
-            Kosong
-        </option>
-    </select>
-
-    @error('status_kondisi')
-        <span class="text-red-500 text-xs">{{ $message }}</span>
-    @enderror
+    <p class="text-xs text-gray-400 mt-1">
+        Kondisi dihitung otomatis dari mayoritas stok:
+        Baik {{ $alat->stok_baik }} pcs,
+        Rusak Ringan {{ $alat->stok_rusak }} pcs,
+        Rusak Parah {{ $alat->stok_rusak_parah }} pcs.
+        Gunakan menu "Ubah Kondisi" untuk mengubahnya.
+    </p>
 </div>
 
         </div>

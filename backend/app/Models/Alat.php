@@ -35,6 +35,25 @@ class Alat extends Model
     ];
 }
 
+    /**
+     * Kondisi mayoritas alat berdasarkan jumlah stok per kondisi.
+     *
+     * Dipakai menghitung status_kondisi secara konsisten,
+     * bukan diisi manual leftar form.
+     */
+    public static function kondisiMayoritas(int $stokBaik, int $stokRusak, int $stokRusakParah): string
+    {
+        $kondisi = [
+            'Baik' => $stokBaik,
+            'Rusak' => $stokRusak,
+            'Rusak Parah' => $stokRusakParah,
+        ];
+
+        arsort($kondisi);
+
+        return (string) array_key_first($kondisi);
+    }
+
     public function kategori(): BelongsTo
     {
         return $this->belongsTo(Kategori::class);
