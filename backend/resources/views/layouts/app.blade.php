@@ -71,7 +71,7 @@
     <div class="flex h-screen overflow-hidden">
 
         <!-- SIDEBAR -->
-        <aside class="w-64 bg-gray-900 text-white flex flex-col hidden md:flex">
+        <aside class="motion-sidebar w-64 bg-gray-900 text-white flex flex-col hidden md:flex">
             
         @if(auth()->user()->role === 'admin')
             <div class="p-5 text-xl font-bold tracking-wider border-b border-gray-800">
@@ -85,7 +85,7 @@
             </div>
             @endif
 
-            <nav class="flex-1 p-4 space-y-2">
+            <nav class="motion-sidebar-nav flex-1 p-4 space-y-2">
 
     {{-- ========================================= --}}
     {{-- MENU KHUSUS ADMIN --}}
@@ -209,11 +209,11 @@
 
 
         <!-- MAIN CONTENT CONTAINER -->
-<div class="flex-1 min-w-0 flex flex-col overflow-y-auto overflow-x-hidden">
+<div class="motion-main flex-1 min-w-0 flex flex-col overflow-y-auto overflow-x-hidden">
 
 
             <!-- NAVBAR ATAS -->
-            <header class="bg-white shadow-sm h-16 flex items-center justify-between px-6 z-10">
+            <header class="motion-topbar bg-white shadow-sm h-16 flex items-center justify-between px-6 z-10">
 
                 <div class="text-lg font-semibold text-gray-800">
                     @yield('header-title', 'Dashboard')
@@ -329,6 +329,8 @@
         </div>
 
     </div>
+
+    @include('partials.motion')
 
 </body>
 

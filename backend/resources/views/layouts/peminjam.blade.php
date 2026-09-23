@@ -36,7 +36,7 @@
     {{-- NAVBAR PEMINJAM --}}
     {{-- ========================================================= --}}
 
-    <header class="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+    <header class="motion-topbar sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
@@ -66,7 +66,7 @@
 
 
                 {{-- NAVIGASI --}}
-                <nav class="hidden md:flex items-center gap-2">
+                <nav class="motion-sidebar-nav hidden md:flex items-center gap-2">
 
                     {{-- Katalog --}}
                     <a href="{{ route('peminjam.katalog') }}"
@@ -255,7 +255,7 @@
     {{-- MOBILE NAVIGATION --}}
     {{-- ========================================================= --}}
 
-    <div class="md:hidden bg-white border-b border-gray-200">
+    <div class="motion-page md:hidden bg-white border-b border-gray-200">
 
         <div class="max-w-7xl mx-auto px-4 py-2">
 
@@ -311,7 +311,7 @@
     {{-- MAIN CONTENT --}}
     {{-- ========================================================= --}}
 
-    <main class="min-h-[calc(100vh-4rem)]">
+    <main class="motion-main min-h-[calc(100vh-4rem)]">
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
@@ -413,6 +413,8 @@
         </div>
 
     </footer>
+
+    @include('partials.motion')
 
 </body>
 
