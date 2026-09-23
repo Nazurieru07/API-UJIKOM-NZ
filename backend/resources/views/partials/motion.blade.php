@@ -18,6 +18,11 @@
         to { opacity: 1; transform: translateY(0); }
     }
 
+    @keyframes motion-fade-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
     @keyframes motion-sidebar-in {
         from { opacity: 0; transform: translateX(-18px); }
         to { opacity: 1; transform: translateX(0); }
@@ -74,7 +79,7 @@
     }
 
     .motion-main {
-        animation: motion-page-in .42s ease-out .08s both;
+        animation: motion-fade-in .42s ease-out .08s both;
     }
 
     .motion-topbar {

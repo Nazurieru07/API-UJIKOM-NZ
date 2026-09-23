@@ -71,6 +71,7 @@
         action="{{ route('peminjam.peminjaman.ajukan') }}"
         method="POST"
         id="formPeminjaman"
+        class="pb-40 sm:pb-28"
     >
 
         @csrf
@@ -530,7 +531,10 @@
 =================================================== --}}
 <div
     id="modalDetailAlat"
-    class="fixed inset-0 z-[90] hidden"
+    class="fixed inset-0 z-[90] hidden overflow-y-auto overscroll-contain"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Detail Alat"
 >
 
     {{-- Overlay --}}
@@ -542,7 +546,7 @@
 
     {{-- Container --}}
     <div
-        class="relative min-h-screen flex items-center
+        class="relative min-h-full flex items-center
                justify-center p-4"
     >
 
@@ -765,7 +769,10 @@
     =================================================== --}}
     <div
         id="modalPeminjaman"
-        class="fixed inset-0 z-[100] hidden"
+        class="fixed inset-0 z-[100] hidden overflow-y-auto overscroll-contain"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Ajukan Peminjaman"
     >
 
         {{-- Overlay --}}
@@ -777,7 +784,7 @@
 
         {{-- Container modal --}}
         <div
-            class="relative min-h-screen flex items-center
+            class="relative min-h-full flex items-center
                    justify-center p-4"
         >
 
