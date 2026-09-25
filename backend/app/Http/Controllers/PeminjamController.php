@@ -7,6 +7,9 @@ use App\Models\Peminjaman;
 use App\Models\DetailPinjam;
 use App\Models\User;
 use App\Notifications\PeminjamanDiajukanNotification;
+use App\Models\PermintaanEditPeminjaman;
+use App\Models\DetailPermintaanEdit;
+use App\Notifications\PermintaanEditDiajukanNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -166,5 +169,85 @@ class PeminjamController extends Controller
             'peminjam.riwayat',
             compact('peminjamans')
         );
+    }
+
+    /**
+     * Form pengajuan edit peminjaman (tambah/hapus alat, ubah tanggal).
+     */
+    public function formEditPeminjaman($id)
+    {
+        $peminjaman = Peminjaman::with('detailPinjams.alat')
+            ->where('user_id', auth()->id())
+            ->whereIn('status', ['dipinjam', 'telat'])
+            ->findOrFail($id);
+
+        $alats = Alat::with('kategori')
+            ->where('stok_baik', '>', 0)
+            ->orderBy('nama_alat')
+            ->get();
+
+        return view('peminjam.edit-peminjaman', compact('peminjaman', 'alats'));
+    }
+
+    /**
+     * Simpan pengajuan edit peminjaman (status menunggu, menunggu persetujuan petugas).
+     */
+    public function ajukanEditPeminjaman(Request $request, $id)
+    {
+        $peminjaman = Peminjaman::with('detailPinjams')
+            ->where('user_id', auth()->id())
+            ->whereIn('status', ['dipinjam', 'telat'])
+            ->findOrFail($id);
+
+        $validated = $request->validate([
+            'tgl_kembali_plan_baru' => 'required|date|after_or_equal:today',
+            'alasan' => 'nullable|string|max:500',
+            'alat_id' => 'required|array|min:1',
+            'alat_id.*' => 'required|integer|distinct|exists:alat,id',
+            'jumlah' => 'required|array',
+            'jumlah.*' => 'required|integer|min:1',
+            'aksi' => 'required|array',
+            'aksi.*' => 'required|in:tambah,hapus',
+        ]);
+
+        DB::beginTransaction();
+
+        try {
+            $permintaanEdit = PermintaanEditPeminjaman::create([
+                'peminjaman_id' => $peminjaman->id,
+                'user_id' => auth()->id(),
+                'tgl_kembali_plan_baru' => $validated['tgl_kembali_plan_baru'],
+                'alasan' => $validated['alasan'] ?? null,
+                'status' => 'menunggu',
+            ]);
+
+            foreach ($validated['alat_id'] as $i => $alatId) {
+                DetailPermintaanEdit::create([
+                    'permintaan_edit_id' => $permintaanEdit->id,
+                    'alat_id' => $alatId,
+                    'jumlah' => $validated['jumlah'][$i],
+                    'aksi' => $validated['aksi'][$i],
+                ]);
+            }
+
+            DB::commit();
+
+            User::where('role', 'petugas')
+                ->get()
+                ->each(function ($petugas) use ($permintaanEdit) {
+                    $petugas->notify(new PermintaanEditDiajukanNotification($permintaanEdit));
+                });
+
+            return redirect()
+                ->route('peminjam.riwayat')
+                ->with('success', 'Pengajuan edit peminjaman berhasil dikirim, menunggu persetujuan petugas.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with('error', 'Gagal mengajukan edit peminjaman: ' . $e->getMessage());
+        }
     }
 }

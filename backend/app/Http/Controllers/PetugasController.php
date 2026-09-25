@@ -11,6 +11,10 @@ use App\Models\User;
 use App\Notifications\PengembalianDiajukanNotification;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use App\Models\PermintaanEditPeminjaman;
+use App\Models\DetailPermintaanEdit;
+use App\Models\DetailPinjam;
+use App\Notifications\PermintaanEditDiprosesNotification;
 use Illuminate\Support\Facades\DB;
 
 class PetugasController extends Controller
@@ -21,6 +25,10 @@ class PetugasController extends Controller
 
     /**
      * Menampilkan daftar pengajuan peminjaman.
+     *
+     * Daftar difilter berdasarkan: search (nama peminjam),
+     * jenis_kelamin, dan rentang tanggal tgl_pinjam.
+     * Filter pakai when() supaya query tanpa filter tetap berjalan.
      */
     public function indexPeminjaman(Request $request)
     {
@@ -98,6 +106,13 @@ class PetugasController extends Controller
 
     /**
      * Menyetujui peminjaman dan mengurangi stok alat.
+     *
+     * Titik kritis alur: stok_baik dan stok_total baru dikurangi di
+     * method ini, BUKAN saat peminjaman diajukan. Kalau pengajuan
+     * ditolak, stok tidak perlu dikembalikan lagi.
+     *
+     * lockForUpdate + transaksi: cegah 2 petugas approve bersamaan
+     * yang bisa membuat stok minus.
      */
     public function setujuiPeminjaman($id)
     {
@@ -137,16 +152,20 @@ foreach ($peminjaman->detailPinjams as $detail) {
         );
     }
 
-    // Kurangi stok total
+    /*
+    | decrement() = operasi atomik di database
+    | (UPDATE ... SET stok = stok - N), lebih aman terhadap race
+    | condition daripada baca stok -> kurang -> save.
+    | Kedua stok (total + kondisi baik) berkurang jumlah yang sama.
+    */
     $alat->decrement('stok', $detail->jumlah);
-
-    // Kurangi stok kondisi baik
     $alat->decrement('stok_baik', $detail->jumlah);
 }
 
            DB::commit();
 
-// Kirim notifikasi kepada Peminjam
+// Notifikasi masuk antrian (ShouldQueue). Jika queue worker tidak
+// jalan, notifikasi numpuk di tabel jobs dan tidak pernah dikirim.
 $peminjaman->user->notify(
     new PeminjamanDisetujuiNotification($peminjaman)
 );
@@ -175,8 +194,12 @@ return redirect()
     /**
      * Menolak peminjaman.
      *
-     * Pengajuan yang masih berstatus "diajukan"
-     * akan dihapus agar peminjam dapat mengajukan kembali.
+     * Pengajuan yang masih berstatus "diajukan" dihapus total,
+     * karena alat belum pernah dikeluarkan (stok belum berkurang).
+     * Menghapus memungkinkan peminjam mengajukan ulang dengan benar.
+     *
+     * Catatan: delete() memicu PeminjamanObserver::deleted, jadi
+     * penolakan tetap tercatat di log aktivitas.
      */
     public function tolakPeminjaman($id)
     {
@@ -221,6 +244,10 @@ return redirect()
     /**
      * Menampilkan daftar peminjaman yang dapat diajukan
      * sebagai pengembalian.
+     *
+     * Hanya peminjaman berstatus dipinjam/telat. Ditampilkan juga
+     * pengembalian yang status_request-nya ditolak, supaya petugas
+     * bisa mengajukan ulang peminjaman yang gagal sebelumnya.
      */
     public function indexPengembalian(Request $request)
     {
@@ -258,7 +285,8 @@ return redirect()
                 $query->whereDate('tgl_pinjam', '<=', $tanggalSampai);
             })
             ->latest('tgl_pinjam')
-            ->get();
+            ->paginate(10)
+            ->withQueryString();
 
         // Daftar kategori untuk dropdown filter
         $kategoris = Kategori::orderBy('nama_kategori')->get();
@@ -274,11 +302,17 @@ return redirect()
      * Mengajukan pengembalian kepada Admin.
      *
      * Petugas menentukan:
-     * - kondisi alat
-     * - denda kerusakan
+     * - kondisi alat (Baik / Rusak Ringan / Rusak Berat)
+     * - denda kerusakan (angka bebas, bisa Rp0)
      *
-     * Denda keterlambatan dihitung oleh sistem
-     * saat Admin menyetujui pengembalian.
+     * Kenapa denda KETERLAMBATAN tidak diisi petugas:
+     * denda ini dihitung sistem dari selisih tgl_kembali_plan vs
+     * tgl_kembali aktual, agar tidak bisa dimanipulasi. Dihitung saat
+     * Admin menyetujui (AdminController::setujuiPengembalian), bukan sini.
+     *
+     * Relasi peminjaman -> pengembalian itu 1:1 (unique), jadi jika
+     * pengembalian sebelumnya DITOLAK, data lama dipakai ulang (update)
+     * bukan dibuat baru, agar tidak melanggar constraint unik.
      */
     public function ajukanPengembalian(Request $request, $peminjamanId)
     {
@@ -293,7 +327,8 @@ return redirect()
             $peminjaman = Peminjaman::with('pengembalian')
                 ->findOrFail($peminjamanId);
 
-            // Pastikan peminjaman masih aktif
+            // Hanya peminjaman yang masih berjalan yang bisa
+            // diajukan pengembaliannya. Yang sudah dikembalikan ditolak.
             if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
                 throw new \Exception(
                     'Peminjaman ini tidak dapat diajukan sebagai pengembalian.'
@@ -390,8 +425,12 @@ return redirect()
     /**
      * Menampilkan laporan pengembalian.
      *
-     * Hanya pengembalian yang sudah disetujui Admin
-     * yang masuk ke laporan resmi.
+     * Hanya pengembalian status_request=disetujui yang masuk ke laporan
+     * resmi. Yang masih menunggu/ditolak TIDAK masuk, karena transaksinya
+     * belum final (alat belum resmi kembali).
+     *
+     * petugas_id NULL -> pengembalian ditangani Admin langsung, tampil
+     * sebagai "Admin" di laporan (bukan kosong/error).
      */
     public function indexLaporan(Request $request)
     {
@@ -425,7 +464,8 @@ return redirect()
 
         $pengembalians = $query
             ->orderBy('tgl_kembali', 'desc')
-            ->get();
+            ->paginate(10)
+            ->withQueryString();
 
         return view('petugas.laporan.index', [
             'pengembalians' => $pengembalians,
@@ -438,8 +478,12 @@ return redirect()
     /**
      * Mencetak laporan pengembalian dalam bentuk PDF.
      *
-     * Hanya pengembalian yang sudah disetujui Admin
-     * yang dicetak.
+     * Hanya pengembalian yang sudah disetujui Admin yang dicetak.
+     *
+     * Kenapa query diulang (tidak pakai method terpisah): laporan web
+     * dan PDF butuh format data berbeda (paginate untuk web, semua
+     * baris untuk PDF), jadi tidak bisa dibagikan langsung.
+     * after_or_equal:tanggal_mulai mencegah rentang tanggal terbalik.
      */
     public function cetakLaporan(Request $request)
     {
@@ -491,5 +535,113 @@ return redirect()
         return $pdf->stream(
             'laporan-pengembalian-alat.pdf'
         );
+    }
+
+    /**
+     * Daftar permintaan edit peminjaman (status menunggu).
+     */
+    public function indexEditPeminjaman()
+    {
+        $permintaanEdits = PermintaanEditPeminjaman::with(['peminjaman.user', 'user', 'detailEdits.alat'])
+            ->where('status', 'menunggu')
+            ->latest()
+            ->paginate(10);
+
+        return view('petugas.edit-peminjaman.index', compact('permintaanEdits'));
+    }
+
+    /**
+     * Setujui permintaan edit: apply perubahan ke peminjaman + stok alat.
+     */
+    public function setujuiEditPeminjaman($id)
+    {
+        $permintaanEdit = PermintaanEditPeminjaman::with(['peminjaman.detailPinjams', 'detailEdits.alat'])
+            ->lockForUpdate()
+            ->findOrFail($id);
+
+        if ($permintaanEdit->status !== 'menunggu') {
+            return redirect()->back()->with('error', 'Permintaan ini sudah diproses.');
+        }
+
+        DB::beginTransaction();
+
+        try {
+            $peminjaman = $permintaanEdit->peminjaman;
+
+            foreach ($permintaanEdit->detailEdits as $detail) {
+                if ($detail->aksi === 'tambah') {
+                    $alat = Alat::lockForUpdate()->findOrFail($detail->alat_id);
+                    if ($alat->stok_baik < $detail->jumlah) {
+                        throw new \Exception('Stok ' . $alat->nama_alat . ' tidak cukup.');
+                    }
+                    $alat->decrement('stok_baik', $detail->jumlah);
+                    $alat->decrement('stok', $detail->jumlah);
+                    DetailPinjam::create([
+                        'peminjaman_id' => $peminjaman->id,
+                        'alat_id' => $detail->alat_id,
+                        'jumlah' => $detail->jumlah,
+                    ]);
+                } elseif ($detail->aksi === 'hapus') {
+                    $dp = DetailPinjam::where('peminjaman_id', $peminjaman->id)
+                        ->where('alat_id', $detail->alat_id)
+                        ->first();
+                    if (!$dp || $dp->jumlah < $detail->jumlah) {
+                        throw new \Exception('Jumlah hapus tidak valid.');
+                    }
+                    if ($dp->jumlah === $detail->jumlah) {
+                        $dp->delete();
+                    } else {
+                        $dp->decrement('jumlah', $detail->jumlah);
+                    }
+                    $alat = Alat::lockForUpdate()->findOrFail($detail->alat_id);
+                    $alat->increment('stok_baik', $detail->jumlah);
+                    $alat->increment('stok', $detail->jumlah);
+                }
+            }
+
+            if ($permintaanEdit->tgl_kembali_plan_baru) {
+                $peminjaman->tgl_kembali_plan = $permintaanEdit->tgl_kembali_plan_baru;
+                $peminjaman->save();
+            }
+
+            $permintaanEdit->update([
+                'status' => 'disetujui',
+                'processed_by' => auth()->id(),
+                'processed_at' => now(),
+            ]);
+
+            DB::commit();
+
+            $permintaanEdit->user->notify(new PermintaanEditDiprosesNotification($permintaanEdit));
+
+            return redirect()->route('petugas.edit-peminjaman.index')->with('success', 'Permintaan edit disetujui.');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Gagal: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Tolak permintaan edit.
+     */
+    public function tolakEditPeminjaman(Request $request, $id)
+    {
+        $request->validate(['catatan_penolakan' => 'nullable|string|max:500']);
+        $permintaanEdit = PermintaanEditPeminjaman::findOrFail($id);
+
+        if ($permintaanEdit->status !== 'menunggu') {
+            return redirect()->back()->with('error', 'Permintaan ini sudah diproses.');
+        }
+
+        $permintaanEdit->update([
+            'status' => 'ditolak',
+            'catatan_penolakan' => $request->catatan_penolakan,
+            'processed_by' => auth()->id(),
+            'processed_at' => now(),
+        ]);
+
+        $permintaanEdit->user->notify(new PermintaanEditDiprosesNotification($permintaanEdit));
+
+        return redirect()->route('petugas.edit-peminjaman.index')->with('success', 'Permintaan edit ditolak.');
     }
 }

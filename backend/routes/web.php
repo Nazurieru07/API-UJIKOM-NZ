@@ -10,7 +10,14 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-// admin
+/*
+|==========================================================================
+| ROUTE ADMIN
+|==========================================================================
+| Middleware 'role:admin' = cek server-side: user harus login DAN
+| role-nya admin. Tanpa ini, siapapun bisa masuk menu admin dengan
+| mengetik URL langsung. Middleware ini di-alias di bootstrap/app.php.
+*/
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
 
@@ -53,7 +60,8 @@ Route::post('/pengembalian/{id}/setujui', [AdminController::class, 'setujuiPenge
     Route::post('/pengembalian/{id}/tolak', [AdminController::class, 'tolakPengembalian'])
     ->name('pengembalian.reject');
 
-    //lOG_AKTIVITAS
+    // LOG_AKTIVITAS: hanya baca, tidak ada route create/update/delete
+    // (log diisi otomatis oleh observer, tidak boleh diedit manual).
     Route::get('/log-aktivitas', [AdminController::class, 'indexLogAktivitas'])
     ->name('log_aktivitas.index');
 
@@ -129,6 +137,13 @@ Route::middleware(['auth', 'role:petugas'])->prefix('petugas')->name('petugas.')
     // ROUTE PDF
     Route::get('/laporan/pdf', [PetugasController::class, 'cetakLaporan'])
         ->name('laporan.pdf');
+    Route::get('/edit-peminjaman', [PetugasController::class, 'indexEditPeminjaman'])
+        ->name('edit-peminjaman.index');
+    Route::post('/edit-peminjaman/{id}/setujui', [PetugasController::class, 'setujuiEditPeminjaman'])
+        ->name('edit-peminjaman.setujui');
+    Route::post('/edit-peminjaman/{id}/tolak', [PetugasController::class, 'tolakEditPeminjaman'])
+        ->name('edit-peminjaman.tolak');
+
 });
 
 // peminjam
@@ -143,6 +158,12 @@ Route::middleware(['auth', 'role:peminjam'])->prefix('peminjam')->name('peminjam
 
     Route::get('/riwayat', [PeminjamController::class, 'riwayatPeminjaman'])
         ->name('riwayat');
+    Route::get('/peminjaman/{id}/edit', [PeminjamController::class, 'formEditPeminjaman'])
+        ->name('edit.form');
+
+    Route::post('/peminjaman/{id}/edit', [PeminjamController::class, 'ajukanEditPeminjaman'])
+        ->name('edit.ajukan');
+
 });
 
 // Route Tamu (Belum Login)
