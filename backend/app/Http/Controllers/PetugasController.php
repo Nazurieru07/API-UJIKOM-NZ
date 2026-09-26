@@ -442,7 +442,10 @@ return redirect()
             'peminjaman.detailPinjams.alat',
             'petugas'
         ])
-            ->where('status_request', 'disetujui');
+            ->where('status_request', 'disetujui')
+            // Petugas hanya melihat pengembalian yang diprosesnya sendiri.
+            // Admin (menu admin/laporan) melihat semuanya.
+            ->where('petugas_id', auth()->id());
 
         // Filter tanggal mulai
         if (!empty($tanggalMulai)) {
@@ -500,7 +503,9 @@ return redirect()
             'peminjaman.detailPinjams.alat',
             'petugas'
         ])
-            ->where('status_request', 'disetujui');
+            ->where('status_request', 'disetujui')
+            // Petugas hanya melihat pengembalian yang diprosesnya sendiri.
+            ->where('petugas_id', auth()->id());
 
         // Filter tanggal mulai
         if ($tanggalMulai) {
@@ -535,6 +540,51 @@ return redirect()
         return $pdf->stream(
             'laporan-pengembalian-alat.pdf'
         );
+    }
+
+    /**
+     * Mengekspor laporan pengembalian ke Excel (.xlsx).
+     * Petugas hanya melihat data yang diprosesnya sendiri.
+     */
+    public function cetakLaporanExcel(Request $request)
+    {
+        $request->validate([
+            'tanggal_mulai' => 'nullable|date',
+            'tanggal_selesai' => 'nullable|date|after_or_equal:tanggal_mulai',
+        ]);
+
+        $tanggalMulai = $request->input('tanggal_mulai');
+        $tanggalSelesai = $request->input('tanggal_selesai');
+
+        $query = Pengembalian::with([
+            'peminjaman.user',
+            'peminjaman.detailPinjams.alat',
+            'petugas'
+        ])
+            ->where('status_request', 'disetujui')
+            ->where('petugas_id', auth()->id());
+
+        if ($tanggalMulai) {
+            $query->whereDate('tgl_kembali', '>=', $tanggalMulai);
+        }
+
+        if ($tanggalSelesai) {
+            $query->whereDate('tgl_kembali', '<=', $tanggalSelesai);
+        }
+
+        $pengembalians = $query->orderBy('tgl_kembali', 'desc')->get();
+
+        $namaFile = 'laporan-pengembalian-alat';
+        if ($tanggalMulai || $tanggalSelesai) {
+            $namaFile .= '-' . ($tanggalMulai ?? 'awal') . '-sd-' . ($tanggalSelesai ?? 'akhir');
+        }
+
+        return (new \App\Exports\LaporanPengembalianExport(
+            $pengembalians,
+            $tanggalMulai,
+            $tanggalSelesai,
+            auth()->user()->name
+        ))->download($namaFile . '.xlsx');
     }
 
     /**

@@ -56,6 +56,10 @@ class AdminController extends Controller
 
     /**
      * Menampilkan daftar alat.
+     *
+     * status_kondisi tidak diedit manual: dihitung otomatis dari
+     * mayoritas stok_baik/stok_rusak/stok_rusak_parah lewat
+     * Alat::kondisiMayoritas(). Lihat model Alat.
      */
     public function indexAlat(Request $request)
 {
@@ -488,6 +492,9 @@ public function perbaikiAlat(Request $request, $id)
 
     /**
      * Menampilkan daftar pengembalian.
+     *
+     * Admin melihat pengembalian status_request=menunggu yang harus
+     * diapprove. Yang sudah ditolak/disetujui sudah selesai dikelola.
      */
     public function indexPengembalian(Request $request)
     {
@@ -623,6 +630,14 @@ public function perbaikiAlat(Request $request, $id)
      */
     public function setujuiPengembalian($id)
     {
+        /*
+        | Titik final alur pengembalian. Di sini:
+        | 1. denda keterlambatan dihitung (butuh tanggal kembali aktual),
+        | 2. status_request -> disetujui,
+        | 3. stok alat dikembalikan sesuai kondisi (baik/rusak/rusak parah),
+        | 4. status peminjaman -> dikembalikan.
+        | Semua dalam transaksi: gagal salah satu -> semua rollback.
+        */
         DB::beginTransaction();
 
         try {
@@ -661,7 +676,8 @@ public function perbaikiAlat(Request $request, $id)
                 $hariTerlambat = $tglRencana->diffInDays($tglKembali);
             }
 
-            // Denda keterlambatan berdasarkan tarif pada config/denda.php
+            // Tarif denda ada di config/denda.php, bukan hardcode.
+            // Ubah tarif di config, semua perhitungan ikut.
                 $dendaKeterlambatan =
                 $hariTerlambat * config('denda.keterlambatan_per_hari');
 
@@ -674,8 +690,17 @@ public function perbaikiAlat(Request $request, $id)
                 'status_request' => 'disetujui',
             ]);
 
-            // Stok dikembalikan setelah Admin menyetujui.
-// Stok kondisi juga disesuaikan dengan kondisi alat saat dikembalikan.
+            /*
+            | Stok dikembalikan setelah Admin menyetujui.
+            | Stok total selalu naik (alat fisik kembali), tapi
+            | distribusi kondisi tergantung kondisi_kembali:
+            | - Baik         -> naik ke stok_baik
+            | - Rusak Ringan -> naik ke stok_rusak
+            | - Rusak Berat  -> naik ke stok_rusak_parah
+            | Kenapa stok_baik hanya naik kalau kondisinya Baik:
+            | unit rusak tidak bisa dipinjam lagi (katalog memfilter
+            | stok_baik > 0), jadi tidak boleh masuk ke stok_baik.
+            */
 foreach ($peminjaman->detailPinjams as $detail) {
     $alat = $detail->alat;
     $jumlah = $detail->jumlah;
@@ -708,7 +733,8 @@ foreach ($peminjaman->detailPinjams as $detail) {
 
             DB::commit();
 
-            // Kirim notifikasi kepada Petugas yang mengajukan
+            // petugas_id NULL = admin menangani sendiri, tidak ada
+            // petugas yang perlu dinotifikasi -> dilewati.
 if ($pengembalian->petugas) {
     $pengembalian->petugas->notify(
         new PengembalianDisetujuiNotification($pengembalian)
@@ -886,6 +912,11 @@ public function ajukanPengembalianAdmin(Request $request, $peminjamanId)
      *
      * Data tidak dihapus agar Petugas dapat
      * memperbaiki dan mengajukan kembali.
+     *
+     * Status peminjaman TIDAK diubah ke dipinjam lagi di sini:
+     * peminjaman tetap aktif karena alat belum kembali. Petugas
+     * mengajukan ulang dari menu pengembalian petugas (pengembalian
+     * ditolak tetap tampil di sana untuk diajukan ulang).
      */
     public function tolakPengembalian($id)
     {
@@ -1052,6 +1083,9 @@ return redirect()
 
     /**
      * Menampilkan daftar user.
+     *
+     * User yang masih punya relasi (peminjaman/log) tidak bisa
+     * dihapus: foreign key akan gagal. Pengecekan di destroyUser.
      */
     public function indexUser(Request $request)
 {
@@ -1297,6 +1331,9 @@ END")
 
     /**
      * Menampilkan daftar kategori.
+     *
+     * Kategori yang masih dipakai alat tidak bisa dihapus.
+     * Pengecekan ada di destroyKategori.
      */
     public function indexKategori(Request $request)
 {
@@ -1436,6 +1473,13 @@ public function showKategori($id)
 
     /**
      * Menampilkan daftar peminjaman.
+     *
+     * Pengecekan status telat TIDAK lagi dilakukan di sini.
+     * Sebelumnya ada mass update (Peminjaman::where(...)->update())
+     * di method ini, yang dilewati observer -> log aktivitas
+     * "dipinjam -> telat" tidak pernah tercatat. Sekarang pakai
+     * command app:hitung-peminjaman-telat yang dijadwal tiap jam.
+     | Lihat app/Console/Commands/HitungPeminjamanTelat.php.
      */
     public function indexPeminjaman(Request $request)
 {
@@ -1443,14 +1487,14 @@ public function showKategori($id)
     |--------------------------------------------------------------------------
     | Cek otomatis peminjaman yang terlambat
     |--------------------------------------------------------------------------
-    | Jika status masih dipinjam dan tanggal rencana kembali
-    | sudah lewat dari hari ini, ubah status menjadi telat.
+    | Dipindahkan ke command `app:hitung-peminjaman-telat` + scheduler harian.
+    | Lihat app/Console/Commands/HitungPeminjamanTelat.php.
+    |
+    | Alasan: sebelumnya update massal langsung di method ini (GET request).
+    | Mass update lewat query builder tidak memanggil model observer,
+    | sehingga log aktivitas status "dipinjam -> telat" hilang, dan setiap
+    | user yang membuka halaman ini memicu write ke database.
     */
-    Peminjaman::where('status', 'dipinjam')
-        ->whereDate('tgl_kembali_plan', '<', now()->toDateString())
-        ->update([
-            'status' => 'telat'
-        ]);
 
     $search = $request->input('search');
     $status = $request->input('status');
@@ -1865,6 +1909,133 @@ public function showKategori($id)
             ]);
 
         return response()->json($alats);
+    }
+
+    // =========================================================
+    // CETAK LAPORAN
+    // Admin melihat semua data pengembalian (semua petugas).
+    // =========================================================
+
+    /**
+     * Menampilkan halaman Cetak Laporan untuk Admin.
+     * Mencakup seluruh data pengembalian disetujui dari semua petugas.
+     */
+    public function indexLaporan(Request $request)
+    {
+        $tanggalMulai = $request->input('tanggal_mulai');
+        $tanggalSelesai = $request->input('tanggal_selesai');
+
+        $query = Pengembalian::with([
+            'peminjaman.user',
+            'peminjaman.detailPinjams.alat',
+            'petugas',
+        ])
+            ->where('status_request', 'disetujui');
+
+        if (!empty($tanggalMulai)) {
+            $query->whereDate('tgl_kembali', '>=', $tanggalMulai);
+        }
+
+        if (!empty($tanggalSelesai)) {
+            $query->whereDate('tgl_kembali', '<=', $tanggalSelesai);
+        }
+
+        $pengembalians = $query
+            ->orderBy('tgl_kembali', 'desc')
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('admin.laporan.index', [
+            'pengembalians' => $pengembalians,
+            'tanggalMulai' => $tanggalMulai,
+            'tanggalSelesai' => $tanggalSelesai,
+        ]);
+    }
+
+    /**
+     * Mengekspor laporan pengembalian ke file Excel (.xlsx).
+     * Admin melihat semua data (seluruh petugas).
+     */
+    public function cetakLaporanExcel(Request $request)
+    {
+        $request->validate([
+            'tanggal_mulai' => 'nullable|date',
+            'tanggal_selesai' => 'nullable|date|after_or_equal:tanggal_mulai',
+        ]);
+
+        $tanggalMulai = $request->input('tanggal_mulai');
+        $tanggalSelesai = $request->input('tanggal_selesai');
+
+        $query = Pengembalian::with([
+            'peminjaman.user',
+            'peminjaman.detailPinjams.alat',
+            'petugas',
+        ])
+            ->where('status_request', 'disetujui');
+
+        if ($tanggalMulai) {
+            $query->whereDate('tgl_kembali', '>=', $tanggalMulai);
+        }
+
+        if ($tanggalSelesai) {
+            $query->whereDate('tgl_kembali', '<=', $tanggalSelesai);
+        }
+
+        $pengembalians = $query->orderBy('tgl_kembali', 'desc')->get();
+
+        $namaFile = 'laporan-pengembalian';
+        if ($tanggalMulai || $tanggalSelesai) {
+            $namaFile .= '-' . ($tanggalMulai ?? 'awal') . '-sd-' . ($tanggalSelesai ?? 'akhir');
+        }
+
+        return (new \App\Exports\LaporanPengembalianExport(
+            $pengembalians,
+            $tanggalMulai,
+            $tanggalSelesai,
+            auth()->user()->name
+        ))->download($namaFile . '.xlsx');
+    }
+
+    /**
+     * Mencetak laporan pengembalian ke PDF.
+     * Admin melihat semua data (seluruh petugas).
+     */
+    public function cetakLaporanPdf(Request $request)
+    {
+        $request->validate([
+            'tanggal_mulai' => 'nullable|date',
+            'tanggal_selesai' => 'nullable|date|after_or_equal:tanggal_mulai',
+        ]);
+
+        $tanggalMulai = $request->input('tanggal_mulai');
+        $tanggalSelesai = $request->input('tanggal_selesai');
+
+        $query = Pengembalian::with([
+            'peminjaman.user',
+            'peminjaman.detailPinjams.alat',
+            'petugas',
+        ])
+            ->where('status_request', 'disetujui');
+
+        if ($tanggalMulai) {
+            $query->whereDate('tgl_kembali', '>=', $tanggalMulai);
+        }
+
+        if ($tanggalSelesai) {
+            $query->whereDate('tgl_kembali', '<=', $tanggalSelesai);
+        }
+
+        $pengembalians = $query->orderBy('tgl_kembali', 'desc')->get();
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('admin.laporan.pdf', [
+            'pengembalians' => $pengembalians,
+            'tanggalMulai' => $tanggalMulai,
+            'tanggalSelesai' => $tanggalSelesai,
+        ]);
+
+        $pdf->setPaper('a4', 'landscape');
+
+        return $pdf->stream('laporan-pengembalian.pdf');
     }
 
     //=====================================

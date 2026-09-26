@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Cetak Laporan - Petugas')
+@section('title', 'Cetak Laporan - Admin')
 @section('header-title', 'Cetak Laporan')
 
 @section('content')
@@ -10,7 +10,7 @@
     {{-- Header --}}
     <div class="p-5 border-b border-gray-200">
 
-        <div class="flex items-center justify-between">
+        <div class="flex flex-wrap items-center justify-between gap-3">
 
             <div>
                 <h2 class="text-lg font-semibold text-gray-800">
@@ -18,11 +18,11 @@
                 </h2>
 
                 <p class="text-sm text-gray-500 mt-1">
-                    Daftar pencatatan pengembalian alat oleh petugas.
+                    Seluruh data pengembalian dari semua petugas.
                 </p>
             </div>
 
-            {{-- Tombol Cetak: pilih format Excel atau PDF --}}
+            {{-- Tombol Cetak: dropdown pilih format --}}
             <div class="relative inline-block text-left" id="cetakDropdown">
                 <button
                     type="button"
@@ -40,25 +40,25 @@
                     class="hidden absolute right-0 mt-2 w-52 bg-white border border-gray-200 rounded-lg shadow-lg z-50"
                 >
                     <a
-                        href="{{ route('petugas.laporan.excel', [
+                        href="{{ route('admin.laporan.excel', [
                             'tanggal_mulai' => $tanggalMulai,
-                            'tanggal_selesai' => $tanggalSelesai
+                            'tanggal_selesai' => $tanggalSelesai,
                         ]) }}"
                         class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100"
                     >
-                        <span class="text-green-600">&#9638;</span>
+                        <span class="text-green-600">▦</span>
                         Excel (.xlsx)
                     </a>
 
                     <a
-                        href="{{ route('petugas.laporan.pdf', [
+                        href="{{ route('admin.laporan.pdf', [
                             'tanggal_mulai' => $tanggalMulai,
-                            'tanggal_selesai' => $tanggalSelesai
+                            'tanggal_selesai' => $tanggalSelesai,
                         ]) }}"
                         target="_blank"
                         class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
                     >
-                        <span class="text-red-600">&#9001;</span>
+                        <span class="text-red-600">⎙</span>
                         PDF (cetak)
                     </a>
                 </div>
@@ -73,12 +73,11 @@
     <div class="p-5 border-b border-gray-200 print:hidden">
 
         <form
-            action="{{ route('petugas.laporan.index') }}"
+            action="{{ route('admin.laporan.index') }}"
             method="GET"
             class="flex flex-wrap items-end gap-3"
         >
 
-            {{-- Tanggal Mulai --}}
             <div>
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -95,7 +94,6 @@
             </div>
 
 
-            {{-- Tanggal Selesai --}}
             <div>
 
                 <label class="block text-sm font-medium text-gray-700 mb-1">
@@ -112,7 +110,6 @@
             </div>
 
 
-            {{-- Tombol Filter --}}
             <button
                 type="submit"
                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition"
@@ -121,9 +118,8 @@
             </button>
 
 
-            {{-- Reset --}}
             <a
-                href="{{ route('petugas.laporan.index') }}"
+                href="{{ route('admin.laporan.index') }}"
                 class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold transition"
             >
                 Reset
@@ -136,36 +132,6 @@
 
     {{-- Area Laporan --}}
     <div id="area-laporan" class="p-5">
-
-        {{-- Judul untuk hasil cetak --}}
-        <div class="hidden print:block text-center mb-6">
-
-            <h1 class="text-xl font-bold text-gray-800">
-                LAPORAN PENGEMBALIAN ALAT
-            </h1>
-
-            <p class="text-sm text-gray-600 mt-1">
-                Sistem Peminjaman Alat
-            </p>
-
-            @if($tanggalMulai || $tanggalSelesai)
-
-                <p class="text-sm text-gray-600 mt-2">
-
-                    Periode:
-                    
-                    {{ $tanggalMulai ? \Carbon\Carbon::parse($tanggalMulai)->format('d-m-Y') : '...' }}
-
-                    s/d
-
-                    {{ $tanggalSelesai ? \Carbon\Carbon::parse($tanggalSelesai)->format('d-m-Y') : '...' }}
-
-                </p>
-
-            @endif
-
-        </div>
-
 
         {{-- Ringkasan --}}
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
@@ -267,23 +233,15 @@
 
                         <tr>
 
-                            {{-- Nomor --}}
                             <td class="px-3 py-3 border text-center">
-                                {{ $loop->iteration }}
+                                {{ $pengembalians->firstItem() + $loop->iteration - 1 }}
                             </td>
 
-
-                            {{-- Peminjam --}}
                             <td class="px-3 py-3 border">
-
                                 {{ $pengembalian->peminjaman->user->name ?? 'User Dihapus' }}
-
                             </td>
 
-
-                            {{-- Alat --}}
                             <td class="px-3 py-3 border">
-
                                 <ul class="list-disc list-inside">
 
                                     @foreach($pengembalian->peminjaman->detailPinjams as $detail)
@@ -296,59 +254,34 @@
                                     @endforeach
 
                                 </ul>
-
                             </td>
 
-
-                            {{-- Tanggal Pinjam --}}
                             <td class="px-3 py-3 border">
-
                                 {{ $pengembalian->peminjaman->tgl_pinjam->format('d-m-Y') }}
-
                             </td>
 
-
-                            {{-- Tanggal Kembali --}}
                             <td class="px-3 py-3 border">
-
                                 {{ $pengembalian->tgl_kembali->format('d-m-Y') }}
-
                             </td>
 
-
-                            {{-- Kondisi --}}
                             <td class="px-3 py-3 border">
-
                                 {{ $pengembalian->kondisi_kembali }}
-
                             </td>
 
-
-                            {{-- Denda --}}
                             <td class="px-3 py-3 border text-right">
-
                                 Rp {{ number_format($pengembalian->denda, 0, ',', '.') }}
-
                             </td>
 
-
-                            {{-- Denda Kerusakan --}}
                             <td class="px-3 py-3 border text-right">
-
                                 Rp {{ number_format($pengembalian->denda_kerusakan, 0, ',', '.') }}
-
                             </td>
 
-
-                            {{-- Petugas --}}
                             <td class="px-3 py-3 border">
-
                                 @if($pengembalian->petugas)
                                     {{ $pengembalian->petugas->name }}
                                 @else
                                     Admin
                                 @endif
-
                             </td>
 
                         </tr>
@@ -356,14 +289,9 @@
                     @empty
 
                         <tr>
-
-                            <td
-                                colspan="9"
-                                class="px-4 py-8 border text-center text-gray-500"
-                            >
+                            <td colspan="9" class="px-3 py-6 border text-center text-gray-500">
                                 Belum ada data pengembalian.
                             </td>
-
                         </tr>
 
                     @endforelse
@@ -374,75 +302,15 @@
 
         </div>
 
-        {{-- Navigasi pagination: hidden saat print agar tidak ikut tercetak --}}
-        <div class="mt-4 print:hidden">
+
+        {{-- Pagination --}}
+        <div class="mt-5 print:hidden">
             {{ $pengembalians->links() }}
-        </div>
-
-
-        {{-- Tanda tangan --}}
-        <div class="hidden print:flex justify-end mt-10">
-
-            <div class="text-center w-56">
-
-                <p class="mb-16">
-                    Petugas,
-                </p>
-
-                <p class="font-semibold border-b border-gray-800 pb-1">
-                    {{ auth()->user()->name }}
-                </p>
-
-            </div>
-
         </div>
 
     </div>
 
 </div>
-
-
-{{-- CSS khusus saat mencetak --}}
-<style>
-
-@media print {
-
-    @page {
-        size: landscape;
-        margin: 15mm;
-    }
-
-    body {
-        background: white !important;
-    }
-
-    aside,
-    header {
-        display: none !important;
-    }
-
-    main {
-        padding: 0 !important;
-    }
-
-    #area-laporan {
-        padding: 0 !important;
-    }
-
-    table {
-        font-size: 11px;
-    }
-
-    th,
-    td {
-        padding: 6px !important;
-    }
-
-}
-
-</style>
-
-@endsection
 
 {{-- Tutup dropdown saat klik di luar --}}
 <script>
@@ -454,3 +322,5 @@
         }
     });
 </script>
+
+@endsection

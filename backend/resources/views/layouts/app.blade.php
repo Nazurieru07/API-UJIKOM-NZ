@@ -92,6 +92,15 @@
     {{-- ========================================= --}}
     @if(auth()->user()->role == 'admin')
 
+        {{-- Cetak Laporan (semua data pengembalian) --}}
+        <a href="{{ route('admin.laporan.index') }}"
+           class="block px-4 py-2 rounded-lg transition
+           {{ request()->routeIs('admin.laporan.*')
+                ? 'bg-gray-800 text-white font-medium shadow'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
+            Cetak Laporan
+        </a>
+
         {{-- Dashboard --}}
         <a href="{{ route('admin.dashboard') }}"
            class="block px-4 py-2 rounded-lg transition
@@ -187,6 +196,15 @@
                 ? 'bg-gray-800 text-white font-medium shadow'
                 : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
             Cetak Laporan
+        </a>
+
+             {{-- Permintaan Edit Peminjaman --}}
+        <a href="{{ route('petugas.edit-peminjaman.index') }}"
+           class="block px-4 py-2 rounded-lg transition
+           {{ request()->routeIs('petugas.edit-peminjaman.*')
+                ? 'bg-gray-800 text-white font-medium shadow'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
+            Permintaan Edit Peminjaman
         </a>
 
     @endif

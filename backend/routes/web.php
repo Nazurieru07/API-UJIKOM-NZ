@@ -21,6 +21,16 @@ Route::get('/', function () {
 Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
 
+    // ROUTE LAPORAN (admin melihat semua data pengembalian)
+    Route::get('/laporan', [AdminController::class, 'indexLaporan'])
+        ->name('laporan.index');
+
+    Route::get('/laporan/excel', [AdminController::class, 'cetakLaporanExcel'])
+        ->name('laporan.excel');
+
+    Route::get('/laporan/pdf', [AdminController::class, 'cetakLaporanPdf'])
+        ->name('laporan.pdf');
+
     // ROUTE KATEGORI
 
 Route::get('/kategori', [AdminController::class, 'indexKategori'])->name('kategori.index');
@@ -137,6 +147,10 @@ Route::middleware(['auth', 'role:petugas'])->prefix('petugas')->name('petugas.')
     // ROUTE PDF
     Route::get('/laporan/pdf', [PetugasController::class, 'cetakLaporan'])
         ->name('laporan.pdf');
+
+    // ROUTE EXCEL
+    Route::get('/laporan/excel', [PetugasController::class, 'cetakLaporanExcel'])
+        ->name('laporan.excel');
     Route::get('/edit-peminjaman', [PetugasController::class, 'indexEditPeminjaman'])
         ->name('edit-peminjaman.index');
     Route::post('/edit-peminjaman/{id}/setujui', [PetugasController::class, 'setujuiEditPeminjaman'])

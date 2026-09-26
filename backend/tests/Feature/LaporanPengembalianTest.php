@@ -18,7 +18,7 @@ class LaporanPengembalianTest extends TestCase
         return User::factory()->create(['role' => 'petugas']);
     }
 
-    public function test_laporan_menampilkan_admin_saat_petugas_id_null(): void
+    public function test_laporan_petugas_menyembunyikan_pengembalian_milik_admin(): void
     {
         $petugas = $this->petugas();
         $peminjam = User::factory()->create(['role' => 'peminjam']);
@@ -42,12 +42,24 @@ class LaporanPengembalianTest extends TestCase
             'status_request' => 'disetujui',
         ]);
 
+        // Petugas hanya melihat pengembalian yang diprosesnya sendiri, jadi
+        // pengembalian yang ditangani admin (petugas_id null) tidak muncul.
         $response = $this->actingAs($petugas)
             ->get(route('petugas.laporan.index'));
 
         $response->assertStatus(200);
-        $response->assertSee('Admin');
-        $response->assertDontSee('Petugas Dihapus');
+        $response->assertSee('Belum ada data pengembalian.', false);
+
+        // Admin melihat seluruh data, termasuk pengembalian petugas_id null
+        // yang ditampilkan sebagai "Admin".
+        $admin = User::factory()->create(['role' => 'admin']);
+
+        $adminResponse = $this->actingAs($admin)
+            ->get(route('admin.laporan.index'));
+
+        $adminResponse->assertStatus(200);
+        $adminResponse->assertSee('Admin');
+        $adminResponse->assertDontSee('Belum ada data pengembalian.', false);
     }
 
     public function test_laporan_menampilkan_nama_petugas_saat_ada(): void
