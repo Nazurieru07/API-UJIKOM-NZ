@@ -7,6 +7,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Pengembalian extends Model
 {
+    // Relasi 1:1 ke peminjaman (peminjaman_id unik).
+    // Alur: petugas mengajukan (status_request=diproses),
+    // admin menyetujui (status_request=disetujui, stok dikembalikan),
+    // atau admin menolak (status_request=ditolak, pengembalian dihapus
+    // dan peminjaman tetap aktif).
     protected $table = 'pengembalian';
 
     protected $fillable = [
@@ -33,6 +38,9 @@ class Pengembalian extends Model
         return $this->belongsTo(Peminjaman::class);
     }
 
+    // Petugas yang memproses pengembalian ini.
+    // Bisa NULL: admin memproses sendiri tanpa petugas,
+    // di laporan ditampilkan sebagai "Admin" (bukan error).
     public function petugas(): BelongsTo
     {
         return $this->belongsTo(User::class, 'petugas_id');

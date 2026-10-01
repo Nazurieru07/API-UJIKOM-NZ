@@ -108,15 +108,13 @@
                 <p class="selected-alat mt-1 text-xs text-green-600"></p>
             </div>
 
-                    <input
-                        type="number"
-                        name="jumlah[]"
-                        value="1"
-                        min="1"
-                        placeholder="Jumlah"
+                    <select
+                        name="alat_unit_id[]"
                         required
-                        class="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none"
+                        class="unit-select w-44 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none"
                     >
+                        <option value="">Pilih serial unit dulu</option>
+                    </select>
 
                     <button
                         type="button"
@@ -314,7 +312,7 @@
                             </div>
 
                             <div class="text-xs text-gray-500">
-                                Stok tersedia: ${alat.stok_baik}
+                                Tersedia: ${alat.jumlah_tersedia} unit
                             </div>
                         `;
 
@@ -328,7 +326,25 @@
                                 alat.id;
 
                             selectedAlat.textContent =
-                                `✓ Dipilih: ${alat.nama_alat} | Stok: ${alat.stok_baik}`;
+                                `✓ Dipilih: ${alat.nama_alat} | Tersedia: ${alat.jumlah_tersedia} unit`;
+
+                            // Isi dropdown serial dengan unit yang tersedia.
+                            // Satu baris peminjaman = satu unit serial.
+                            const unitSelect =
+                                searchInput.closest('.alat-row').querySelector('.unit-select');
+
+                            unitSelect.innerHTML = '<option value="">Pilih serial</option>';
+
+                            (alat.units || []).forEach(function (unit) {
+                                if (unit.kondisi !== 'tersedia') {
+                                    return;
+                                }
+
+                                const opt = document.createElement('option');
+                                opt.value = unit.id;
+                                opt.textContent = unit.serial_number;
+                                unitSelect.appendChild(opt);
+                            });
 
                             results.classList.add('hidden');
 
@@ -373,8 +389,9 @@
         // Reset ID alat
         newRow.querySelector('.alat-id').value = '';
 
-        // Reset jumlah
-        newRow.querySelector('input[name="jumlah[]"]').value = 1;
+        // Reset select serial unit
+        newRow.querySelector('.unit-select').innerHTML =
+            '<option value="">Pilih serial unit dulu</option>';
 
         // Reset hasil pencarian
         newRow.querySelector('.alat-results').innerHTML = '';

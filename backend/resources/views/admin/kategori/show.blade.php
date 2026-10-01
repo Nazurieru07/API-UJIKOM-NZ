@@ -46,45 +46,45 @@
     {{-- Baik --}}
     <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
         <p class="text-sm text-gray-500">
-            Kondisi Baik
+            Unit Tersedia
         </p>
 
         <p class="text-2xl font-bold text-emerald-600 mt-1">
-            {{ $kategori->jumlah_baik }}
+            {{ $kategori->jumlah_tersedia }}
         </p>
 
         <p class="text-xs text-gray-400 mt-1">
-            pcs
+            unit
         </p>
     </div>
 
     {{-- Rusak --}}
     <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
         <p class="text-sm text-gray-500">
-            Kondisi Rusak
+            Sedang Dipinjam
         </p>
 
-        <p class="text-2xl font-bold text-amber-600 mt-1">
-            {{ $kategori->jumlah_rusak }}
+        <p class="text-2xl font-bold text-blue-600 mt-1">
+            {{ $kategori->jumlah_dipinjam }}
         </p>
 
         <p class="text-xs text-gray-400 mt-1">
-            pcs
+            unit
         </p>
     </div>
 
     {{-- Rusak Parah --}}
     <div class="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
         <p class="text-sm text-gray-500">
-            Kondisi Rusak Parah
+            Unit Rusak
         </p>
 
         <p class="text-2xl font-bold text-red-600 mt-1">
-            {{ $kategori->jumlah_rusak_parah }}
+            {{ $kategori->jumlah_rusak }}
         </p>
 
         <p class="text-xs text-gray-400 mt-1">
-            pcs
+            unit
         </p>
     </div>
 
@@ -139,7 +139,7 @@
                             </td>
 
                             <td class="py-3 px-4 border-b text-center">
-                                {{ $alat->stok }}
+                                {{ $alat->jumlah_tersedia + $alat->jumlah_dipinjam + $alat->jumlah_rusak }}
                             </td>
 
                             <td class="py-3 px-4 border-b">
@@ -149,21 +149,19 @@
         <span class="inline-flex items-center px-3 py-1 rounded-full
                      bg-emerald-50 text-emerald-700
                      text-xs font-semibold">
-            Baik: {{ $alat->stok_baik }} pcs
+            Tersedia: {{ $alat->jumlah_tersedia }}
         </span>
 
-        {{-- Kondisi Rusak --}}
         <span class="inline-flex items-center px-3 py-1 rounded-full
-                     bg-amber-50 text-amber-700
+                     bg-blue-50 text-blue-700
                      text-xs font-semibold">
-            Rusak: {{ $alat->stok_rusak }} pcs
+            Dipinjam: {{ $alat->jumlah_dipinjam }}
         </span>
 
-        {{-- Kondisi Rusak Parah --}}
         <span class="inline-flex items-center px-3 py-1 rounded-full
                      bg-red-50 text-red-700
                      text-xs font-semibold">
-            Rusak Parah: {{ $alat->stok_rusak_parah }} pcs
+            Rusak: {{ $alat->jumlah_rusak }}
         </span>
 
     </div>

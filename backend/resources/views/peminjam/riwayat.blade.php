@@ -335,6 +335,39 @@
 
 
             {{-- ================================================= --}}
+            {{-- TOMBOL EDIT (hanya untuk status dipinjam/telat) --}}
+            {{-- ================================================= --}}
+
+            @if(in_array($peminjaman->status, ['dipinjam', 'telat']))
+
+                <div class="px-5 sm:px-6 pb-5">
+
+                    <a
+                        href="{{ route('peminjam.edit.form', $peminjaman->id) }}"
+                        class="inline-flex items-center gap-2
+                               px-4 py-2.5 rounded-xl
+                               bg-amber-50 text-amber-700
+                               border border-amber-200
+                               font-semibold text-sm
+                               hover:bg-amber-100
+                               transition"
+                    >
+
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+
+                        Ajukan Edit Peminjaman
+
+                    </a>
+
+                </div>
+
+            @endif
+
+
+            {{-- ================================================= --}}
             {{-- DAFTAR ALAT --}}
             {{-- ================================================= --}}
 
@@ -375,11 +408,11 @@
                                        bg-white border border-gray-200"
                             >
 
-                                @if($detail->alat && $detail->alat->gambar)
+                                @if($detail->alatUnit?->alat?->gambar)
 
                                     <img
-                                        src="{{ asset($detail->alat->gambar) }}"
-                                        alt="{{ $detail->alat->nama_alat }}"
+                                        src="{{ asset($detail->alatUnit->alat->gambar) }}"
+                                        alt="{{ $detail->alatUnit->alat->nama_alat }}"
                                         class="w-full h-full object-cover"
                                     >
 
@@ -404,30 +437,30 @@
 
                                 <h5 class="font-semibold text-gray-800 truncate">
 
-                                    {{ $detail->alat->nama_alat ?? 'Alat Dihapus' }}
+                                    {{ $detail->alatUnit?->alat->nama_alat ?? 'Alat Dihapus' }}
 
                                 </h5>
 
                                 <p class="text-xs text-gray-500 mt-1">
 
-                                    {{ $detail->alat->kategori->nama_kategori ?? 'Tanpa kategori' }}
+                                    {{ $detail->alatUnit?->alat->kategori->nama_kategori ?? 'Tanpa kategori' }}
 
                                 </p>
 
                             </div>
 
 
-                            {{-- JUMLAH --}}
+                            {{-- SERIAL UNIT --}}
 
                             <div class="text-right flex-shrink-0">
 
                                 <p class="text-xs text-gray-500">
-                                    Jumlah
+                                    Serial
                                 </p>
 
-                                <p class="font-bold text-gray-800">
+                                <p class="font-bold text-gray-800 font-mono">
 
-                                    {{ $detail->jumlah }} pcs
+                                    {{ $detail->alatUnit?->serial_number ?? '-' }}
 
                                 </p>
 

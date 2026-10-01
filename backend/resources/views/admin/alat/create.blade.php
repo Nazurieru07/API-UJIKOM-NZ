@@ -56,45 +56,70 @@
             @enderror
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+                Kode Alat
+                <span class="text-xs text-gray-400 font-normal">
+                    (Prefix serial number, 2 huruf)
+                </span>
+            </label>
 
-            <div>
-                <label class="block text-gray-700 text-sm font-semibold mb-2">
-                    Stok
-                </label>
+            <input
+                type="text"
+                name="kode_alat"
+                id="kode_alat"
+                value="{{ old('kode_alat') }}"
+                required
+                maxlength="2"
+                placeholder="Contoh: MD"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg uppercase font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
 
-                <input
-                    type="number"
-                    name="stok"
-                    value="{{ old('stok') }}"
-                    min="0"
-                    required
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+            <p class="text-xs text-gray-400 mt-1">
+                Dipakai sebagai prefix serial number setiap unit, misal
+                <span class="font-mono">MD-001</span>. Disarankan otomatis dari
+                nama alat; boleh ditimpa.
+            </p>
 
-                @error('stok')
-                    <span class="text-red-500 text-xs">{{ $message }}</span>
-                @enderror
-            </div>
+            @error('kode_alat')
+                <span class="text-red-500 text-xs">{{ $message }}</span>
+            @enderror
+        </div>
 
-            <div>
-    <label class="block text-gray-700 text-sm font-semibold mb-2">
-        Kondisi Alat
-    </label>
+        <!--
+            Jumlah unit fisik yang dibuat sekaligus. Tanpa field ini,
+            form tidak mengirim jumlah_unit; controller memvalidasinya
+            required, jadi submit selalu memantul kembali ke form ini
+            tanpa pesan yang kelihatan = "looping".
+        -->
+        <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+                Jumlah Unit
+                <span class="text-xs text-gray-400 font-normal">
+                    (Berapa barang serial dibuat)
+                </span>
+            </label>
 
-    <input
-        type="text"
-        value="Baik (otomatis)"
-        disabled
-        class="w-full px-3 py-2 border border-gray-200 bg-gray-100 text-gray-600 rounded-lg cursor-not-allowed"
-    >
+            <input
+                type="number"
+                name="jumlah_unit"
+                id="jumlah_unit"
+                value="{{ old('jumlah_unit', 1) }}"
+                required
+                min="1"
+                max="1000"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
 
-    <p class="text-xs text-gray-400 mt-1">
-        Alat baru selalu tercatat dalam kondisi Baik. Gunakan menu
-        "Ubah Kondisi" untuk mengubah kondisi sebagian alat.
-    </p>
-</div>
+            <p class="text-xs text-gray-400 mt-1">
+                Setiap unit dapat serial berurutan, misal
+                <span class="font-mono">MD-001</span>,
+                <span class="font-mono">MD-002</span>, dst.
+            </p>
 
+            @error('jumlah_unit')
+                <span class="text-red-500 text-xs">{{ $message }}</span>
+            @enderror
         </div>
 
         <div class="mb-4">
@@ -152,5 +177,43 @@
     </form>
 
 </div>
+
+<script>
+    // ponytail: saran kode_alat = inisial nama alat (logika 2 huruf pertama
+    // tiap kata), client-side saja. Versi canonical server ada di
+    // App\Models\Alat::saranKodeAlat(). Hapus script ini kalau sudah
+    // disatukan ke endpoint /search/alats.
+    document.addEventListener('DOMContentLoaded', function () {
+        const nama = document.querySelector('input[name="nama_alat"]');
+        const kode = document.getElementById('kode_alat');
+
+        if (!nama || !kode) return;
+
+        nama.addEventListener('input', function () {
+            // jangan timpa yang sudah admin ketik manual
+            if (kode.dataset.manual === '1') return;
+
+            const kata = nama.value.trim().split(/\s+/).filter(k => k !== '');
+            if (kata.length === 0) {
+                // model: 2 huruf pertama default, bukan string kosong
+                kode.value = 'AL';
+                return;
+            }
+
+            if (kata.length === 1) {
+                kode.value = kata[0].substring(0, 2).toUpperCase();
+                return;
+            }
+
+            kode.value = kata.slice(0, 2)
+                .map(k => k.charAt(0).toUpperCase())
+                .join('');
+        });
+
+        kode.addEventListener('input', function () {
+            kode.dataset.manual = '1';
+        });
+    });
+</script>
 
 @endsection

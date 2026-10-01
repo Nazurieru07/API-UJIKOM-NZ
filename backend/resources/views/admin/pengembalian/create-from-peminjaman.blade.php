@@ -56,8 +56,8 @@
                 @foreach($peminjaman->detailPinjams as $detail)
 
                     <div class="px-4 py-3 border-b last:border-b-0">
-                        {{ $detail->alat->nama_alat ?? '-' }}
-                        — {{ $detail->jumlah }}
+                        {{ $detail->alatUnit?->alat?->nama_alat ?? 'Alat Dihapus' }}
+                        — {{ $detail->alatUnit?->serial_number ?? '-' }}
                     </div>
 
                 @endforeach
@@ -91,12 +91,8 @@
                             Baik
                         </option>
 
-                        <option value="Rusak Ringan">
-                            Rusak Ringan
-                        </option>
-
-                        <option value="Rusak Berat">
-                            Rusak Berat
+                        <option value="Rusak">
+                            Rusak
                         </option>
 
                     </select>

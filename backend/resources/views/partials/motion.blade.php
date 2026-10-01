@@ -86,9 +86,25 @@
         animation: motion-page-in .35s ease-out both;
     }
 
-    details[open] > div {
+    /*
+    | Dropdown dalam <details> dapat animasi masuk. Modal fixed TIDAK:
+    | animasi ini berakhir dengan transform, dan transform pada sebuah
+    | elemen membatalkan position:fixed untuk seluruh turunannya -- modal
+    | jadi terikat ke ancestor-nya, ikut ter-scroll halaman, dan bagian
+    | bawahnya (tombol aksi) keluar viewport.
+    |
+    | Modal Kelola Unit/Perbaiki dipindahkan ke <body> lewat
+    | data-teleport-modal, jadi lepas dari aturan ini. Class
+    | .modal-fixed tetap diberi pengaman: kalau script gagal dimuat,
+    | modal tidak dapat animasi yang merusak position-nya.
+    */
+    details[open] > div:not(.modal-fixed) {
         animation: motion-dropdown-in .2s ease-out both;
         transform-origin: top right;
+    }
+
+    .modal-fixed {
+        animation: none !important;
     }
 
     .motion-toast {
@@ -340,5 +356,43 @@
         } else {
             initMotion();
         }
-    })();
+    
+    /*
+    | Konfirmasi sebelum logout.
+    |
+    | Logout memutus semua session (termasuk pekerjaan admin/petugas yang
+    | belum tersimpan di form terbuka). Tombol logout di kedua layout
+    | memakai attribute data-confirm-logout; intercept submit di sini
+    | supaya kedua layout (web + peminjam) dapat perlakuan sama tanpa
+    | duplikasi.
+    */
+    document.addEventListener('submit', function (event) {
+        var form = event.target.closest('[data-confirm-logout]');
+        if (!form) return;
+        if (form.dataset.confirmed === '1') {
+            form.dataset.confirmed = '';
+            return;
+        }
+        event.preventDefault();
+        if (window.confirm('Yakin ingin keluar dari akun ini?')) {
+            form.dataset.confirmed = '1';
+            form.requestSubmit();
+        }
+    });
+
+    /*
+    | Tombol tutup modal [data-teleport-modal].
+    |
+    | Modal dipindahkan ke <body> saat dibuka. Tombol di dalam modal
+    | memakai data-close-modal supaya tidak bergantung pada struktur DOM
+    | hasil teleport (parentElement tidak menunjuk ke details lagi).
+    */
+    document.addEventListener('click', function (event) {
+        var btn = event.target.closest('[data-close-modal]');
+        if (!btn) return;
+        var id = btn.getAttribute('data-close-modal');
+        var details = document.querySelector('details[data-modal-id="' + id + '"]');
+        if (details) details.removeAttribute('open');
+    });
+})();
 </script>

@@ -180,11 +180,11 @@
                             </td>
 
                             <td class="px-4 py-3 font-medium text-gray-800">
-                                {{ $detail->alat->nama_alat }}
+                                {{ $detail->alatUnit->alat->nama_alat }}
                             </td>
 
                             <td class="px-4 py-3 text-gray-600">
-                                {{ $detail->jumlah }} pcs
+                                {{ $detail->alatUnit?->serial_number ?? '-' }}
                             </td>
 
                             <td class="px-4 py-3">
@@ -195,16 +195,10 @@
                                         Baik
                                     </span>
 
-                                @elseif($pengembalian->kondisi_kembali == 'Rusak Ringan')
-
-                                    <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-medium">
-                                        Rusak Ringan
-                                    </span>
-
-                                @elseif($pengembalian->kondisi_kembali == 'Rusak Berat')
+                                @elseif($pengembalian->kondisi_kembali === 'Rusak')
 
                                     <span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-medium">
-                                        Rusak Berat
+                                        Rusak
                                     </span>
 
                                 @else
@@ -267,16 +261,10 @@
                             Baik
                         </span>
 
-                    @elseif($pengembalian->kondisi_kembali == 'Rusak Ringan')
-
-                        <span class="text-yellow-700 font-semibold">
-                            Rusak Ringan
-                        </span>
-
-                    @elseif($pengembalian->kondisi_kembali == 'Rusak Berat')
+                    @elseif($pengembalian->kondisi_kembali === 'Rusak')
 
                         <span class="text-red-700 font-semibold">
-                            Rusak Berat
+                            Rusak
                         </span>
 
                     @else

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Alat;
+use App\Models\AlatUnit;
 use App\Models\Kategori;
 use App\Models\Peminjaman;
 use App\Models\Pengembalian;
@@ -41,7 +42,7 @@ class PetugasController extends Controller
 
             $peminjamans = Peminjaman::with([
                 'user',
-                'detailPinjams.alat.kategori'
+                'detailPinjams.alatUnit.alat.kategori'
             ])
             ->when($search, function ($query, $search) {
     $query->whereHas('user', function ($q) use ($search) {
@@ -60,7 +61,7 @@ class PetugasController extends Controller
             $query->whereDate('tgl_pinjam', '<=', $tanggalSampai);
         })
             ->when($alatId, function ($query, $alatId) {
-        $query->whereHas('detailPinjams', function ($q) use ($alatId) {
+        $query->whereHas('detailPinjams.alatUnit', function ($q) use ($alatId) {
             $q->where('alat_id', $alatId);
         });
     })
@@ -83,7 +84,8 @@ class PetugasController extends Controller
 ->withQueryString();
 
             $daftarAlat = Alat::select('alat.id', 'alat.nama_alat')
-            ->join('detail_pinjam', 'alat.id', '=', 'detail_pinjam.alat_id')
+            ->join('alat_unit', 'alat.id', '=', 'alat_unit.alat_id')
+            ->join('detail_pinjam', 'detail_pinjam.alat_unit_id', '=', 'alat_unit.id')
             ->distinct()
             ->orderBy('nama_alat')
             ->get();
@@ -105,21 +107,21 @@ class PetugasController extends Controller
 
 
     /**
-     * Menyetujui peminjaman dan mengurangi stok alat.
+     * Menyetujui peminjaman dan menandai unit serial sebagai dipinjam.
      *
-     * Titik kritis alur: stok_baik dan stok_total baru dikurangi di
+     * Titik kritis alur: kondisi unit baru di-flip ke 'dipinjam' di
      * method ini, BUKAN saat peminjaman diajukan. Kalau pengajuan
-     * ditolak, stok tidak perlu dikembalikan lagi.
+     * ditolak, unit tetap 'tersedia' tanpa perlu dikembalikan.
      *
-     * lockForUpdate + transaksi: cegah 2 petugas approve bersamaan
-     * yang bisa membuat stok minus.
+     * UPDATE bersyarat (WHERE kondisi = 'tersedia') + cek rowCount():
+     * cegah 2 petugas approve serial yang sama bersamaan.
      */
     public function setujuiPeminjaman($id)
     {
         DB::beginTransaction();
 
         try {
-            $peminjaman = Peminjaman::with('detailPinjams')
+            $peminjaman = Peminjaman::with('detailPinjams.alatUnit.alat')
                 ->lockForUpdate()
                 ->findOrFail($id);
 
@@ -134,32 +136,21 @@ class PetugasController extends Controller
                 'status' => 'dipinjam'
             ]);
 
-            // Kurangi stok alat dari kondisi Baik
+            // Tandai tiap unit serial sebagai dipinjam (atomic).
+// Cek rowCount() === 1: kalau bukan 1, unit sudah dipakai pengajuan
+// lain di antara waktu peminjam memilih dan petugas menyetujui.
 foreach ($peminjaman->detailPinjams as $detail) {
-    $alat = Alat::findOrFail($detail->alat_id);
+    $unit = $detail->alatUnit;
 
-    // Pastikan stok total cukup
-    if ($alat->stok < $detail->jumlah) {
+    $updated = AlatUnit::where('id', $unit->id)
+        ->where('kondisi', 'tersedia')
+        ->update(['kondisi' => 'dipinjam']);
+
+    if ($updated !== 1) {
         throw new \Exception(
-            "Stok alat '{$alat->nama_alat}' tidak mencukupi."
+            "Serial {$unit->serial_number} ({$unit->alat->nama_alat}) sudah dipakai peminjaman lain."
         );
     }
-
-    // Pastikan stok dalam kondisi baik cukup untuk dipinjam
-    if ($alat->stok_baik < $detail->jumlah) {
-        throw new \Exception(
-            "Stok alat '{$alat->nama_alat}' dalam kondisi baik tidak mencukupi."
-        );
-    }
-
-    /*
-    | decrement() = operasi atomik di database
-    | (UPDATE ... SET stok = stok - N), lebih aman terhadap race
-    | condition daripada baca stok -> kurang -> save.
-    | Kedua stok (total + kondisi baik) berkurang jumlah yang sama.
-    */
-    $alat->decrement('stok', $detail->jumlah);
-    $alat->decrement('stok_baik', $detail->jumlah);
 }
 
            DB::commit();
@@ -174,7 +165,7 @@ return redirect()
     ->back()
     ->with(
         'success',
-        'Peminjaman disetujui dan stok alat dikurangi.'
+        'Peminjaman disetujui, unit ditandai sebagai dipinjam.'
     );
 
         } catch (\Exception $e) {
@@ -195,8 +186,13 @@ return redirect()
      * Menolak peminjaman.
      *
      * Pengajuan yang masih berstatus "diajukan" dihapus total,
-     * karena alat belum pernah dikeluarkan (stok belum berkurang).
-     * Menghapus memungkinkan peminjam mengajukan ulang dengan benar.
+     * karena alat belum pernah dikeluarkan. Menghapus memungkinkan
+     * peminjam mengajukan ulang dengan benar.
+     *
+     * Pengajuan yang sudah pernah disetujui (statusnya sudah berubah
+     * ke 'dipinjam' tapi kemudian dibatalkan lewat sini) meninggalkan
+     * unit berkondisi 'dipinjam', jadi semua serial dikembalikan ke
+     * 'tersedia' dulu sebelum data dihapus.
      *
      * Catatan: delete() memicu PeminjamanObserver::deleted, jadi
      * penolakan tetap tercatat di log aktivitas.
@@ -214,6 +210,14 @@ return redirect()
                         'error',
                         'Status peminjaman sudah berubah.'
                     );
+            }
+
+            // Kembalikan semua unit yang sudah ditandai dipinjam
+            $peminjaman->load('detailPinjams.alatUnit');
+            foreach ($peminjaman->detailPinjams as $detail) {
+                if ($detail->alatUnit && $detail->alatUnit->isDipinjam()) {
+                    $detail->alatUnit->update(['kondisi' => 'tersedia']);
+                }
             }
 
             $peminjaman->delete();
@@ -258,7 +262,7 @@ return redirect()
 
         $peminjamans = Peminjaman::with([
             'user',
-            'detailPinjams.alat.kategori',
+            'detailPinjams.alatUnit.alat.kategori',
             'pengembalian'
         ])
             ->whereIn('status', ['dipinjam', 'telat'])
@@ -274,7 +278,7 @@ return redirect()
                 });
             })
             ->when($kategoriId, function ($query, $kategoriId) {
-                $query->whereHas('detailPinjams.alat', function ($q) use ($kategoriId) {
+                $query->whereHas('detailPinjams.alatUnit.alat', function ($q) use ($kategoriId) {
                     $q->where('kategori_id', $kategoriId);
                 });
             })
@@ -317,7 +321,7 @@ return redirect()
     public function ajukanPengembalian(Request $request, $peminjamanId)
     {
         $request->validate([
-            'kondisi_kembali' => 'required|in:Baik,Rusak Ringan,Rusak Berat',
+            'kondisi_kembali' => 'required|in:Baik,Rusak',
             'denda_kerusakan' => 'required|integer|min:0',
         ]);
 
@@ -439,7 +443,7 @@ return redirect()
 
         $query = Pengembalian::with([
             'peminjaman.user',
-            'peminjaman.detailPinjams.alat',
+            'peminjaman.detailPinjams.alatUnit.alat',
             'petugas'
         ])
             ->where('status_request', 'disetujui')
@@ -500,7 +504,7 @@ return redirect()
 
         $query = Pengembalian::with([
             'peminjaman.user',
-            'peminjaman.detailPinjams.alat',
+            'peminjaman.detailPinjams.alatUnit.alat',
             'petugas'
         ])
             ->where('status_request', 'disetujui')
@@ -558,7 +562,7 @@ return redirect()
 
         $query = Pengembalian::with([
             'peminjaman.user',
-            'peminjaman.detailPinjams.alat',
+            'peminjaman.detailPinjams.alatUnit.alat',
             'petugas'
         ])
             ->where('status_request', 'disetujui')
@@ -589,23 +593,61 @@ return redirect()
 
     /**
      * Daftar permintaan edit peminjaman (status menunggu).
+     * Filter: peminjam, search (nama/email/alasan), rentang tanggal pengajuan.
      */
-    public function indexEditPeminjaman()
+    public function indexEditPeminjaman(Request $request)
     {
-        $permintaanEdits = PermintaanEditPeminjaman::with(['peminjaman.user', 'user', 'detailEdits.alat'])
-            ->where('status', 'menunggu')
-            ->latest()
-            ->paginate(10);
+        $search = $request->input('search');
+        $peminjamId = $request->input('peminjam_id');
+        $tanggalDari = $request->input('tanggal_dari');
+        $tanggalSampai = $request->input('tanggal_sampai');
 
-        return view('petugas.edit-peminjaman.index', compact('permintaanEdits'));
+        $daftarPeminjam = PermintaanEditPeminjaman::where('status', 'menunggu')
+            ->join('users', 'users.id', '=', 'permintaan_edit_peminjaman.user_id')
+            ->distinct()
+            ->orderBy('users.name')
+            ->get(['users.id', 'users.name', 'users.email']);
+
+        $permintaanEdits = PermintaanEditPeminjaman::with(['peminjaman.user', 'user', 'detailEdits.alatUnit.alat'])
+            ->where('status', 'menunggu')
+            ->when($search, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->whereHas('user', function ($uq) use ($search) {
+                        $uq->where('name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%");
+                    })
+                    ->orWhere('alasan', 'like', "%{$search}%");
+                });
+            })
+            ->when($peminjamId, function ($query, $peminjamId) {
+                $query->where('user_id', $peminjamId);
+            })
+            ->when($tanggalDari, function ($query, $tanggalDari) {
+                $query->whereDate('created_at', '>=', $tanggalDari);
+            })
+            ->when($tanggalSampai, function ($query, $tanggalSampai) {
+                $query->whereDate('created_at', '<=', $tanggalSampai);
+            })
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('petugas.edit-peminjaman.index', compact('permintaanEdits', 'daftarPeminjam'));
     }
 
     /**
-     * Setujui permintaan edit: apply perubahan ke peminjaman + stok alat.
+     * Setujui permintaan edit: apply perubahan per unit serial.
+     *
+     * aksi 'tambah' = claim unit (kondisi tersedia -> dipinjam) lalu
+     * buat detail_pinjam baru. aksi 'hapus' = hapus detail_pinjam dan
+     * kembalikan unit ke 'tersedia'.
      */
     public function setujuiEditPeminjaman($id)
     {
-        $permintaanEdit = PermintaanEditPeminjaman::with(['peminjaman.detailPinjams', 'detailEdits.alat'])
+        $permintaanEdit = PermintaanEditPeminjaman::with([
+            'peminjaman.detailPinjams.alatUnit.alat',
+            'detailEdits.alatUnit.alat',
+        ])
             ->lockForUpdate()
             ->findOrFail($id);
 
@@ -619,33 +661,41 @@ return redirect()
             $peminjaman = $permintaanEdit->peminjaman;
 
             foreach ($permintaanEdit->detailEdits as $detail) {
+                $unit = $detail->alatUnit;
+
                 if ($detail->aksi === 'tambah') {
-                    $alat = Alat::lockForUpdate()->findOrFail($detail->alat_id);
-                    if ($alat->stok_baik < $detail->jumlah) {
-                        throw new \Exception('Stok ' . $alat->nama_alat . ' tidak cukup.');
+                    // Claim unit secara atomic: kalau bukan 1 baris,
+                    // unit sudah tidak tersedia lagi.
+                    $updated = AlatUnit::where('id', $unit->id)
+                        ->where('kondisi', 'tersedia')
+                        ->update(['kondisi' => 'dipinjam']);
+
+                    if ($updated !== 1) {
+                        throw new \Exception(
+                            "Serial {$unit->serial_number} ({$unit->alat->nama_alat}) sudah tidak tersedia."
+                        );
                     }
-                    $alat->decrement('stok_baik', $detail->jumlah);
-                    $alat->decrement('stok', $detail->jumlah);
+
                     DetailPinjam::create([
                         'peminjaman_id' => $peminjaman->id,
-                        'alat_id' => $detail->alat_id,
-                        'jumlah' => $detail->jumlah,
+                        'alat_unit_id' => $unit->id,
                     ]);
                 } elseif ($detail->aksi === 'hapus') {
+                    // Lepaskan unit dari peminjaman ini
                     $dp = DetailPinjam::where('peminjaman_id', $peminjaman->id)
-                        ->where('alat_id', $detail->alat_id)
+                        ->where('alat_unit_id', $unit->id)
                         ->first();
-                    if (!$dp || $dp->jumlah < $detail->jumlah) {
-                        throw new \Exception('Jumlah hapus tidak valid.');
+                    if (!$dp) {
+                        throw new \Exception(
+                            "Serial {$unit->serial_number} tidak ada di peminjaman ini."
+                        );
                     }
-                    if ($dp->jumlah === $detail->jumlah) {
-                        $dp->delete();
-                    } else {
-                        $dp->decrement('jumlah', $detail->jumlah);
-                    }
-                    $alat = Alat::lockForUpdate()->findOrFail($detail->alat_id);
-                    $alat->increment('stok_baik', $detail->jumlah);
-                    $alat->increment('stok', $detail->jumlah);
+                    $dp->delete();
+
+                    // Unit bebas dipinjam lagi
+                    AlatUnit::where('id', $unit->id)
+                        ->where('kondisi', 'dipinjam')
+                        ->update(['kondisi' => 'tersedia']);
                 }
             }
 
@@ -673,6 +723,10 @@ return redirect()
 
     /**
      * Tolak permintaan edit.
+     *
+     * Permintaan edit aksi 'tambah' belum pernah mengubah kondisi unit
+     * (claim baru terjadi di setujuiEditPeminjaman), jadi tidak ada
+     * serial yang harus dikembalikan disini.
      */
     public function tolakEditPeminjaman(Request $request, $id)
     {

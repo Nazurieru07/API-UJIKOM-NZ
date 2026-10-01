@@ -82,6 +82,25 @@
 
 </select>
 
+<!-- Filter Status Akun -->
+<select
+    name="status"
+    class="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+    <option value="">Semua Status</option>
+
+    <option value="aktif"
+        {{ request('status') == 'aktif' ? 'selected' : '' }}>
+        Aktif
+    </option>
+
+    <option value="nonaktif"
+        {{ request('status') == 'nonaktif' ? 'selected' : '' }}>
+        Nonaktif
+    </option>
+
+</select>
+
 <button
     type="submit"
     class="bg-gray-800 hover:bg-gray-900 text-white px-4 py-2 text-sm font-semibold rounded-lg transition">
@@ -91,7 +110,7 @@
     </form>
 
     <!-- Tombol Reset -->
-    @if(request('search') || request('role') || request('jenis_kelamin'))
+    @if(request('search') || request('role') || request('jenis_kelamin') || request('status'))
         <a href="{{ route('admin.user.index') }}"
             class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-3 py-2 text-sm rounded-lg flex items-center transition whitespace-nowrap"
             title="Reset Pencarian dan Filter">
@@ -118,6 +137,7 @@
                         <th class="py-3 px-4 border-b">Role / Hak Akses</th>
                         <th class="py-3 px-4 border-b">No. HP</th>
                         <th class="py-3 px-4 border-b">Jenis Kelamin</th>
+                        <th class="py-3 px-4 border-b">Status Akun</th>
                         <th class="py-3 px-4 border-b">Aksi</th>
                     </tr>
                 </thead>
@@ -183,6 +203,18 @@
                         </td>
 
                             <td class="py-3 px-4 border-b">
+                                @if($user->is_aktif)
+                                    <span class="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-emerald-100 text-emerald-700">
+                                        Aktif
+                                    </span>
+                                @else
+                                    <span class="px-3 py-1 inline-flex text-xs font-semibold rounded-full bg-red-100 text-red-700">
+                                        Nonaktif
+                                    </span>
+                                @endif
+                            </td>
+
+                            <td class="py-3 px-4 border-b">
 
                                 <div class="flex items-center space-x-2">
 
@@ -208,6 +240,28 @@
                     </form>
                 @endif
 
+                    <!-- Tombol Nonaktifkan / Aktifkan -->
+                    @if($user->id !== auth()->id())
+                        <form action="{{ route('admin.user.toggle-aktif', $user->id) }}"
+                            method="POST"
+                            onsubmit="return confirm('{{ $user->is_aktif ? 'Nonaktifkan' : 'Aktifkan kembali' }} akun {{ $user->name }}? User nonaktif tidak dapat login.'">
+
+                            @csrf
+
+                            @if($user->is_aktif)
+                                <button type="submit"
+                                    class="bg-gray-500 hover:bg-gray-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition">
+                                    Nonaktifkan
+                                </button>
+                            @else
+                                <button type="submit"
+                                    class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-semibold transition">
+                                    Aktifkan
+                                </button>
+                            @endif
+                        </form>
+                    @endif
+
                                 </div>
 
                             </td>
@@ -216,7 +270,7 @@
                     @empty
 
                         <tr>
-                            <td colspan="7" class="py-4 text-center text-gray-500">
+                            <td colspan="8" class="py-4 text-center text-gray-500">
                             Belum ada data pengguna.
                         </td>
                         </tr>

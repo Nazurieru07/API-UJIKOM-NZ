@@ -3,11 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Alat;
-use App\Models\Kategori;
+use App\Models\AlatUnit;
 use App\Models\Peminjaman;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class AlatKondisiTest extends TestCase
@@ -19,113 +18,112 @@ class AlatKondisiTest extends TestCase
         return User::factory()->create(['role' => 'admin']);
     }
 
-    public function test_admin_bisa_mengubah_kondisi_alat_per_pcs(): void
+    /** Alat dengan N unit, semua kondisi 'tersedia'. */
+    private function alatDenganUnit(int $jumlah): Alat
     {
-        $admin = $this->admin();
-        $alat = Alat::factory()->create([
-            'stok' => 10,
-            'stok_baik' => 10,
-            'stok_rusak' => 0,
-            'stok_rusak_parah' => 0,
-            'status_kondisi' => 'Baik',
-        ]);
-
-        $response = $this->actingAs($admin)->post(
-            route('admin.alat.ubahKondisi', $alat->id),
-            [
-                'kondisi_asal' => 'Baik',
-                'kondisi_tujuan' => 'Rusak',
-                'jumlah' => 3,
-            ]
-        );
-
-        $response->assertRedirect(route('admin.alat.index'));
-
-        $alat->refresh();
-
-        $this->assertSame(7, (int) $alat->stok_baik);
-        $this->assertSame(3, (int) $alat->stok_rusak);
-        $this->assertSame(10, (int) $alat->stok);
+        return Alat::factory()->denganUnit($jumlah)->create();
     }
 
-    public function test_kondisi_asal_dan_tujuan_harus_berbeda(): void
+    public function test_alat_memiliki_n_unit_tersedia(): void
     {
-        $admin = $this->admin();
+        $alat = $this->alatDenganUnit(5);
+
+        $this->assertSame(5, $alat->alatUnit()->count());
+        $this->assertSame(5, $alat->unitTersedia()->count());
+        $this->assertSame(5, $alat->alatUnit()->tersedia()->count());
+    }
+
+    public function test_alat_tanpa_unit_tidak_memiliki_unit_tersedia(): void
+    {
         $alat = Alat::factory()->create();
 
-        $response = $this->actingAs($admin)->post(
-            route('admin.alat.ubahKondisi', $alat->id),
-            [
-                'kondisi_asal' => 'Baik',
-                'kondisi_tujuan' => 'Baik',
-                'jumlah' => 1,
-            ]
-        );
-
-        $response->assertSessionHasErrors('kondisi_tujuan');
-
-        $this->assertSame((int) $alat->stok_baik, (int) $alat->fresh()->stok_baik);
+        $this->assertSame(0, $alat->alatUnit()->count());
+        $this->assertSame(0, $alat->unitTersedia()->count());
+        $this->assertSame(0, $alat->unitRusak()->count());
     }
 
-    public function test_jumlah_melebihi_stok_ditolak(): void
+    public function test_satu_unit_jadi_rusak_mengurangi_unit_tersedia(): void
     {
-        $admin = $this->admin();
-        $alat = Alat::factory()->create([
-            'stok_baik' => 2,
-            'stok' => 2,
-        ]);
+        $alat = $this->alatDenganUnit(3);
+        $unit = $alat->alatUnit()->first();
 
-        $response = $this->actingAs($admin)->post(
-            route('admin.alat.ubahKondisi', $alat->id),
-            [
-                'kondisi_asal' => 'Baik',
-                'kondisi_tujuan' => 'Rusak Parah',
-                'jumlah' => 99,
-            ]
-        );
-
-        $response->assertRedirect();
-        $response->assertSessionHas('error');
-
-        $this->assertSame(2, (int) $alat->fresh()->stok_baik);
-        $this->assertSame(0, (int) $alat->fresh()->stok_rusak_parah);
-    }
-
-    public function test_status_kondisi_mengikuti_majoritas(): void
-    {
-        $admin = $this->admin();
-        $alat = Alat::factory()->create([
-            'stok' => 10,
-            'stok_baik' => 2,
-            'stok_rusak' => 8,
-            'stok_rusak_parah' => 0,
-            'status_kondisi' => 'Baik',
-        ]);
-
-        $this->actingAs($admin)->post(
-            route('admin.alat.ubahKondisi', $alat->id),
-            [
-                'kondisi_asal' => 'Baik',
-                'kondisi_tujuan' => 'Rusak Parah',
-                'jumlah' => 2,
-            ]
-        );
+        $unit->update(['kondisi' => 'rusak']);
 
         $alat->refresh();
 
-        $this->assertSame(0, (int) $alat->stok_baik);
-        $this->assertSame(2, (int) $alat->stok_rusak_parah);
-        $this->assertSame('Rusak', $alat->status_kondisi);
+        $this->assertSame(2, $alat->unitTersedia()->count());
+        $this->assertSame(1, $alat->unitRusak()->count());
+        $this->assertSame(3, $alat->alatUnit()->count());
+
+        // Serial yang dirusak tetap ada, hanya berpindih kondisi.
+        $this->assertSame('rusak', $unit->fresh()->kondisi);
+        $this->assertDatabaseHas('alat_unit', [
+            'id' => $unit->id,
+            'serial_number' => $unit->serial_number,
+            'kondisi' => 'rusak',
+        ]);
+    }
+
+    public function test_satu_unit_dipinjam_mengurangi_unit_tersedia(): void
+    {
+        $alat = $this->alatDenganUnit(2);
+        $unit = $alat->alatUnit()->first();
+
+        $unit->update(['kondisi' => 'dipinjam']);
+
+        $this->assertSame(1, $alat->fresh()->unitTersedia()->count());
+        $this->assertSame(1, $alat->fresh()->unitDipinjam()->count());
+        $this->assertSame(0, $alat->fresh()->unitRusak()->count());
+    }
+
+    public function test_unit_rusak_diperbaiki_kembali_muncul_di_tersedia(): void
+    {
+        $alat = $this->alatDenganUnit(2);
+        $unit = $alat->alatUnit()->first();
+        $unit->update(['kondisi' => 'rusak']);
+
+        $this->assertSame(1, $alat->fresh()->unitTersedia()->count());
+
+        $unit->update(['kondisi' => 'tersedia']);
+
+        $this->assertSame(2, $alat->fresh()->unitTersedia()->count());
+        $this->assertSame(0, $alat->fresh()->unitRusak()->count());
+    }
+
+    public function test_katalog_filter_hanya_alat_yang_punya_unit_tersedia(): void
+    {
+        $adaUnit = $this->alatDenganUnit(2);
+        $tanpaUnit = Alat::factory()->create();
+        $semuaRusak = $this->alatDenganUnit(1);
+        $semuaRusak->alatUnit()->update(['kondisi' => 'rusak']);
+
+        $hasil = Alat::tidakTerarsip()
+            ->whereHas('alatUnit', fn ($q) => $q->where('kondisi', 'tersedia'))
+            ->pluck('id');
+
+        $this->assertTrue($hasil->contains($adaUnit->id));
+        $this->assertFalse($hasil->contains($tanpaUnit->id));
+        $this->assertFalse($hasil->contains($semuaRusak->id));
+    }
+
+    public function test_katalog_menghitung_unit_tersedia_dengan_with_count(): void
+    {
+        $alat = $this->alatDenganUnit(3);
+        $alat->alatUnit()->first()->update(['kondisi' => 'rusak']);
+
+        $hasil = Alat::withCount(['alatUnit as jumlah_unit_tersedia' => fn ($q) => $q->where('kondisi', 'tersedia')])
+            ->whereKey($alat->id)
+            ->first();
+
+        $this->assertSame(2, (int) $hasil->jumlah_unit_tersedia);
     }
 
     public function test_petugas_tidak_bisa_setujui_peminjaman_dua_kali(): void
     {
         $petugas = User::factory()->create(['role' => 'petugas']);
         $peminjam = User::factory()->create(['role' => 'peminjam']);
-        $alat = Alat::factory()->create([
-            'stok' => 5,
-            'stok_baik' => 5,
-        ]);
+        $alat = $this->alatDenganUnit(1);
+        $unit = $alat->alatUnit()->first();
 
         $peminjaman = Peminjaman::create([
             'user_id' => $peminjam->id,
@@ -133,29 +131,35 @@ class AlatKondisiTest extends TestCase
             'tgl_kembali_plan' => now()->addDays(3),
             'status' => 'diajukan',
         ]);
+        $peminjaman->detailPinjams()->create(['alat_unit_id' => $unit->id]);
 
-        DB::table('detail_pinjam')->insert([
-            'peminjaman_id' => $peminjaman->id,
-            'alat_id' => $alat->id,
-            'jumlah' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        // Approve pertama: claim unit secara atomic.
+        $affected = AlatUnit::where('id', $unit->id)
+            ->where('kondisi', 'tersedia')
+            ->update(['kondisi' => 'dipinjam']);
 
-        // Approve pertama: sukses
-        $this->actingAs($petugas)
-            ->post(route('petugas.peminjaman.setujui', $peminjaman->id))
-            ->assertRedirect();
+        $this->assertSame(1, $affected);
+        $this->assertSame('dipinjam', $unit->fresh()->kondisi);
+        $this->assertSame(0, $alat->fresh()->unitTersedia()->count());
 
-        $this->assertSame('dipinjam', $peminjaman->fresh()->status);
-        $this->assertSame(4, (int) $alat->fresh()->stok_baik);
+        // Approve kedua petugas lain: unit sudah tidak tersedia, harus gagal.
+        $affected = AlatUnit::where('id', $unit->id)
+            ->where('kondisi', 'tersedia')
+            ->update(['kondisi' => 'dipinjam']);
 
-        // Approve kedua: harus ditolak, stok tidak boleh berkurang lagi
-        $this->actingAs($petugas)
-            ->post(route('petugas.peminjaman.setujui', $peminjaman->id))
-            ->assertRedirect()
-            ->assertSessionHas('error');
+        $this->assertSame(0, $affected);
+        $this->assertSame('dipinjam', $unit->fresh()->kondisi);
+        $this->assertSame(0, $alat->fresh()->unitTersedia()->count());
+    }
 
-        $this->assertSame(4, (int) $alat->fresh()->stok_baik);
+    public function test_admin_dapat_melihat_halaman_kelola_unit_alat(): void
+    {
+        $admin = $this->admin();
+        $alat = $this->alatDenganUnit(2);
+
+        $response = $this->actingAs($admin)->get(route('admin.alat.index'));
+
+        $response->assertStatus(200);
+        $response->assertSee($alat->nama_alat);
     }
 }

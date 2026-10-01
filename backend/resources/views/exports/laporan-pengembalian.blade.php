@@ -57,7 +57,7 @@
             <td>{{ $pengembalian->peminjaman->user->name ?? 'User Dihapus' }}</td>
             <td>
                 @foreach($pengembalian->peminjaman->detailPinjams as $detail)
-                    {{ $detail->alat->nama_alat ?? 'Alat Dihapus' }} ({{ $detail->jumlah }} pcs)@if(!$loop->last), @endif
+                    {{ $detail->alatUnit?->alat?->nama_alat ?? 'Alat Dihapus' }} ({{ $detail->alatUnit?->serial_number ?? '-' }})@if(!$loop->last), @endif
                 @endforeach
             </td>
             <td style="text-align:center;">

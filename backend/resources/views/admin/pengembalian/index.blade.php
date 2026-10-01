@@ -103,14 +103,9 @@
                     Baik
                 </option>
 
-                <option value="Rusak Ringan"
-                    {{ request('kondisi') == 'Rusak Ringan' ? 'selected' : '' }}>
-                    Rusak Ringan
-                </option>
-
-                <option value="Rusak Berat"
-                    {{ request('kondisi') == 'Rusak Berat' ? 'selected' : '' }}>
-                    Rusak Berat
+                <option value="Rusak"
+                    {{ request('kondisi') === 'Rusak' ? 'selected' : '' }}>
+                    Rusak
                 </option>
             </select>
 
@@ -289,14 +284,9 @@
                                 Baik
                             </option>
 
-                            <option value="Rusak Ringan"
-                                {{ request('kondisi') == 'Rusak Ringan' ? 'selected' : '' }}>
-                                Rusak Ringan
-                            </option>
-
-                            <option value="Rusak Berat"
-                                {{ request('kondisi') == 'Rusak Berat' ? 'selected' : '' }}>
-                                Rusak Berat
+                            <option value="Rusak"
+                                {{ request('kondisi') === 'Rusak' ? 'selected' : '' }}>
+                                Rusak
                             </option>
                         </select>
                     </div>
@@ -528,10 +518,10 @@
 
                                     <li>
 
-                                        {{ $detail->alat->nama_alat }}
+                                        {{ $detail->alatUnit->alat->nama_alat }}
 
                                         <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                                            {{ $detail->jumlah }} pcs
+                                            {{ $detail->alatUnit?->serial_number ?? '-' }}
                                         </span>
 
                                     </li>
@@ -560,16 +550,11 @@
                                     Baik
                                 </span>
 
-                            @elseif($pengembalian->kondisi_kembali == 'Rusak Ringan')
+                            @elseif($pengembalian->kondisi_kembali === 'Rusak'
+                                || $pengembalian->kondisi_kembali === 'Rusak')
 
-                                <span class="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap">
-                                Rusak Ringan
-                            </span>
-
-                            @elseif($pengembalian->kondisi_kembali == 'Rusak Berat')
-
-                                <span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-medium">
-                                    Rusak Berat
+                                <span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap">
+                                    Rusak
                                 </span>
 
                             @else

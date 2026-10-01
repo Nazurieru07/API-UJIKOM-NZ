@@ -115,21 +115,38 @@
                                         Edit
                                     </a>
 
-                                    <form
-                                        action="{{ route('admin.kategori.destroy', $kategori->id) }}"
-                                        method="POST"
-                                        onsubmit="return confirm('Yakin ingin menghapus kategori ini?')">
-
-                                        @csrf
-                                        @method('DELETE')
-
+                                    @if($kategori->alat_count > 0)
+                                        {{--
+                                            | Kategori masih memiliki alat. Alat-alat itu punya
+                                            | riwayat peminjaman yang tidak boleh lenyap, jadi
+                                            | kategori tidak bisa dihapus. Gunakan Edit untuk
+                                            | mengubah nama kategori.
+                                        --}}
                                         <button
-                                            type="submit"
-                                            class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition">
+                                            type="button"
+                                            disabled
+                                            title="Kategori masih memiliki {{ $kategori->alat_count }} alat dan tidak dapat dihapus."
+                                            class="bg-gray-300 text-gray-500 px-3 py-1.5 rounded text-xs font-semibold cursor-not-allowed"
+                                        >
                                             Hapus
                                         </button>
+                                    @else
+                                        <form
+                                            action="{{ route('admin.kategori.destroy', $kategori->id) }}"
+                                            method="POST"
+                                            onsubmit="return confirm('Yakin ingin menghapus kategori ini?')">
 
-                                    </form>
+                                            @csrf
+                                            @method('DELETE')
+
+                                            <button
+                                                type="submit"
+                                                class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition">
+                                                Hapus
+                                            </button>
+
+                                        </form>
+                                    @endif
 
                                 </div>
 

@@ -3,7 +3,7 @@
 @section('title', 'Katalog Alat - Peminjam')
 
 @section('page-heading', 'Katalog Alat')
-@section('page-description', 'Pilih alat yang ingin kamu pinjam dan tentukan jumlahnya.')
+@section('page-description', 'Pilih alat yang ingin kamu pinjam lalu pilih serial unit yang tersedia.')
 
 @section('content')
 
@@ -97,8 +97,8 @@
                         data-id="{{ $alat->id }}"
                         data-nama-detail="{{ $alat->nama_alat }}"
                         data-kategori-detail="{{ $alat->kategori->nama_kategori ?? 'Tanpa Kategori' }}"
-                        data-kondisi="{{ $alat->status_kondisi }}"
-                        data-stok="{{ $alat->stok_baik }}"
+                        data-kode="{{ $alat->kode_alat }}"
+                        data-stok="{{ $alat->alatUnit->where('kondisi', 'tersedia')->count() }}"
                         data-deskripsi="{{ $alat->deskripsi ?? 'Tidak ada deskripsi alat.' }}"
                         data-gambar="{{ $alat->gambar ? asset($alat->gambar) : '' }}"
                     >
@@ -157,19 +157,17 @@
                                        bg-white/90 backdrop-blur-sm shadow-sm
                                        text-emerald-600"
                             >
-                                Stok {{ $alat->stok_baik }}
+                                Tersedia: {{ $alat->alatUnit->where('kondisi', 'tersedia')->count() }} unit
                             </span>
 
                         </div>
 
 
-                        {{-- Checkbox --}}
+                        {{-- Checkbox (pilih semua unit di kartu ini) --}}
                         <label class="absolute top-3 left-3 cursor-pointer">
 
                             <input
                                 type="checkbox"
-                                name="alat_id[]"
-                                value="{{ $alat->id }}"
                                 class="alat-checkbox peer sr-only"
                                 data-id="{{ $alat->id }}"
                                 data-nama="{{ $alat->nama_alat }}"
@@ -227,29 +225,6 @@
                         </h3>
 
 
-                        {{-- Kondisi --}}
-<div class="mt-2 flex items-center gap-2">
-
-    @if ($alat->status_kondisi === 'Baik')
-        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
-
-    @elseif ($alat->status_kondisi === 'Rusak')
-        <span class="w-2 h-2 rounded-full bg-orange-500"></span>
-
-    @elseif ($alat->status_kondisi === 'Rusak Parah')
-        <span class="w-2 h-2 rounded-full bg-red-500"></span>
-
-    @else
-        <span class="w-2 h-2 rounded-full bg-gray-400"></span>
-    @endif
-
-    <span class="text-sm text-gray-500">
-        Kondisi: {{ $alat->status_kondisi }}
-    </span>
-
-</div>
-
-
                         {{-- Deskripsi sementara --}}
                         @if($alat->deskripsi)
 
@@ -283,60 +258,94 @@
 </button>
 
                         {{-- =========================
-                            JUMLAH
-                        ========================== --}}
-                        <div class="mt-4 flex items-center justify-between">
+                            PILIH SERIAL UNIT
+                        ==========================
+                        Kartu ditampilkan pendek: maksimal 4 serial pertama
+                        dalam grid 2 kolom. Sisanya disembunyikan di balik
+                        tombol "+N unit lainnya" supaya kartu tidak memanjang
+                        tak terbatas saat alat punya banyak unit.
+                        --}}
+                        <div class="mt-4">
 
-                            <span class="text-sm font-medium text-gray-700">
-                                Jumlah
-                            </span>
+                            <p class="text-sm font-medium text-gray-700 mb-2">
+                                Serial Unit
+                            </p>
 
+                            @php
+                                $unitTersedia = $alat->alatUnit->where('kondisi', 'tersedia');
+                                $unitTampil = $unitTersedia->take(4);
+                                $unitSisa = $unitTersedia->count() - $unitTampil->count();
 
-                            <div
-                                class="flex items-center border border-gray-200
-                                       rounded-xl overflow-hidden"
-                            >
+                                // Kirim jumlah ini ke tombol; JS meneruskannya
+                                // sebagai query param ?skip=N. Server melewatkan
+                                // N serial pertama yang sudah ada di kartu, jadi
+                                // "+N unit lainnya" hanya memunculkan sisanya.
+                                $jumlahTampilDiKartu = $unitTampil->count();
+                            @endphp
 
-                                {{-- Minus --}}
-                                <button
-                                    type="button"
-                                    class="btn-minus w-9 h-9 flex items-center
-                                           justify-center text-gray-500
-                                           hover:bg-gray-100 transition"
-                                    data-id="{{ $alat->id }}"
-                                >
-                                    −
-                                </button>
+                            <div class="grid grid-cols-2 gap-2">
+                                @forelse($unitTampil as $unit)
 
+                                    <label
+                                        class="flex items-center gap-2 px-2.5 py-2
+                                               border border-gray-200 rounded-xl
+                                               hover:bg-gray-50 cursor-pointer
+                                               transition has-[:checked]:border-blue-400
+                                               has-[:checked]:bg-blue-50"
+                                    >
 
-                                {{-- Input jumlah --}}
-                                <input
-                                    type="number"
-                                    name="jumlah[{{ $alat->id }}]"
-                                    value="1"
-                                    min="1"
-                                    max="{{ $alat->stok_baik }}"
-                                    class="jumlah-input w-12 h-9 text-center
-                                           border-x border-gray-200
-                                           focus:outline-none text-sm
-                                           font-semibold"
-                                    data-id="{{ $alat->id }}"
-                                >
+                                        <input
+                                            type="checkbox"
+                                            name="alat_unit_id[]"
+                                            value="{{ $unit->id }}"
+                                            class="unit-checkbox sr-only"
+                                            data-alat-id="{{ $alat->id }}"
+                                            data-nama="{{ $alat->nama_alat }}"
+                                            data-serial="{{ $unit->serial_number }}"
+                                        >
 
+                                        <span
+                                            class="w-4 h-4 shrink-0 rounded border border-gray-300
+                                                   flex items-center justify-center
+                                                   text-white text-[10px] font-bold
+                                                   peer-checked:bg-blue-600
+                                                   peer-checked:border-blue-600"
+                                            aria-hidden="true"
+                                        >
+                                            ✓
+                                        </span>
 
-                                {{-- Plus --}}
-                                <button
-                                    type="button"
-                                    class="btn-plus w-9 h-9 flex items-center
-                                           justify-center text-gray-500
-                                           hover:bg-gray-100 transition"
-                                    data-id="{{ $alat->id }}"
-                                    data-max="{{ $alat->stok_baik }}"
-                                >
-                                    +
-                                </button>
+                                        <span class="text-sm text-gray-700 font-mono truncate">
+                                            {{ $unit->serial_number }}
+                                        </span>
 
+                                    </label>
+
+                                @empty
+
+                                    <p class="col-span-2 text-sm text-gray-400 italic">
+                                        Tidak ada unit tersedia.
+                                    </p>
+
+                                @endforelse
                             </div>
+
+                            @if($unitSisa > 0)
+                                <div class="mt-2">
+                                    <button
+                                        type="button"
+                                        id="tombol-serial-{{ $alat->id }}"
+                                        class="tampil-semua-serial w-full py-2 rounded-xl
+                                               border border-dashed border-gray-300
+                                               text-gray-500 hover:bg-gray-50
+                                               text-xs font-semibold transition"
+                                        data-id="{{ $alat->id }}"
+                                        data-skip="{{ $jumlahTampilDiKartu }}"
+                                    >
+                                        + {{ $unitSisa }} unit lainnya
+                                    </button>
+                                </div>
+                            @endif
 
                         </div>
 
@@ -353,7 +362,7 @@
                             data-id="{{ $alat->id }}"
                         >
 
-                            Pilih Alat
+                            Pilih Semua Unit
 
                         </button>
 
@@ -470,13 +479,13 @@
                 <div>
 
                     <p class="text-xs sm:text-sm text-gray-500">
-                        Alat Dipilih
+                        Unit Dipilih
                     </p>
 
                     <div class="flex items-center gap-2">
 
                         <span
-                            id="jumlahDipilih"
+                            id="unitDipilih"
                             class="text-xl sm:text-2xl font-bold
                                    text-gray-900"
                         >
@@ -484,7 +493,7 @@
                         </span>
 
                         <span class="text-sm text-gray-500">
-                            alat
+                            unit
                         </span>
 
                     </div>
@@ -652,7 +661,7 @@
                 {{-- Informasi singkat --}}
                 <div class="grid grid-cols-2 gap-3 mt-5">
 
-                    {{-- Kondisi --}}
+                    {{-- Kode alat --}}
                     <div
                         class="bg-gray-50
                                border border-gray-200
@@ -660,18 +669,18 @@
                     >
 
                         <p class="text-xs text-gray-500 mb-1">
-                            Kondisi
+                            Kode Alat
                         </p>
 
                         <p
-                            id="detailKondisi"
-                            class="font-semibold text-gray-800"
+                            id="detailKode"
+                            class="font-semibold text-gray-800 font-mono"
                         ></p>
 
                     </div>
 
 
-                    {{-- Stok --}}
+                    {{-- Unit tersedia --}}
                     <div
                         class="bg-gray-50
                                border border-gray-200
@@ -679,7 +688,7 @@
                     >
 
                         <p class="text-xs text-gray-500 mb-1">
-                            Stok Tersedia
+                            Unit Tersedia
                         </p>
 
                         <p
@@ -861,7 +870,7 @@
                             <div>
 
                                 <p class="text-sm text-blue-600 font-medium">
-                                    Alat yang dipilih
+                                    Unit dipilih
                                 </p>
 
                                 <p
@@ -870,6 +879,11 @@
                                 >
                                     0
                                 </p>
+
+                                <p
+                                    id="modalDaftarNamaAlat"
+                                    class="text-xs text-blue-600 truncate mt-0.5"
+                                ></p>
 
                             </div>
 
@@ -907,11 +921,11 @@
                     </div>
 
 
-                    {{-- Daftar alat --}}
+                    {{-- Daftar unit --}}
                     <div class="mb-5">
 
                         <p class="text-sm font-semibold text-gray-800 mb-3">
-                            Daftar Alat
+                            Daftar Serial Unit
                         </p>
 
                         <div
@@ -1020,11 +1034,11 @@
             const checkboxes =
                 document.querySelectorAll('.alat-checkbox');
 
-            const jumlahInputs =
-                document.querySelectorAll('.jumlah-input');
+            const unitCheckboxes =
+                document.querySelectorAll('.unit-checkbox');
 
-            const jumlahDipilih =
-                document.getElementById('jumlahDipilih');
+            const unitDipilih =
+                document.getElementById('unitDipilih');
 
             const btnLanjut =
                 document.getElementById('btnLanjut');
@@ -1084,8 +1098,8 @@
                 const detailNama =
                     document.getElementById('detailNama');
 
-                const detailKondisi =
-                    document.getElementById('detailKondisi');
+                const detailKode =
+                    document.getElementById('detailKode');
 
                 const detailStok =
                     document.getElementById('detailStok');
@@ -1095,17 +1109,17 @@
 
 
             /* ==========================================
-               UPDATE JUMLAH ALAT DIPILIH
+               UPDATE JUMLAH UNIT DIPILIH
             ========================================== */
 
             function updateSelectedCount() {
 
                 const selected =
                     document.querySelectorAll(
-                        '.alat-checkbox:checked'
+                        '.unit-checkbox:checked'
                     );
 
-                jumlahDipilih.textContent =
+                unitDipilih.textContent =
                     selected.length;
 
                 btnLanjut.disabled =
@@ -1115,80 +1129,91 @@
 
 
             /* ==========================================
-               CHECKBOX
+               UNIT CHECKBOX
             ========================================== */
 
-            checkboxes.forEach(function (checkbox) {
+            unitCheckboxes.forEach(function (checkbox) {
 
                 checkbox.addEventListener('change', function () {
 
                     const card =
                         this.closest('.alat-card');
 
-                    const button =
-                        card.querySelector('.btn-pilih');
-
-
-                    if (this.checked) {
-
-                        card.classList.add(
-                            'ring-2',
-                            'ring-blue-500',
-                            'border-blue-500'
-                        );
-
-
-                        button.textContent =
-                            '✓ Alat Dipilih';
-
-
-                        button.classList.remove(
-                            'border-blue-200',
-                            'text-blue-600',
-                            'hover:bg-blue-50'
-                        );
-
-
-                        button.classList.add(
-                            'bg-blue-600',
-                            'text-white',
-                            'border-blue-600'
-                        );
-
-                    } else {
-
-                        card.classList.remove(
-                            'ring-2',
-                            'ring-blue-500',
-                            'border-blue-500'
-                        );
-
-
-                        button.textContent =
-                            'Pilih Alat';
-
-
-                        button.classList.remove(
-                            'bg-blue-600',
-                            'text-white',
-                            'border-blue-600'
-                        );
-
-
-                        button.classList.add(
-                            'border-blue-200',
-                            'text-blue-600',
-                            'hover:bg-blue-50'
-                        );
-
-                    }
-
+                    updateCardState(card);
 
                     updateSelectedCount();
 
                 });
 
             });
+
+
+            /* ==========================================
+               SYNC STATE KARTU (highlight + tombol pilih)
+            ========================================== */
+
+            function updateCardState(card) {
+
+                const units =
+                    card.querySelectorAll('.unit-checkbox');
+
+                const checked =
+                    card.querySelectorAll('.unit-checkbox:checked');
+
+                const button =
+                    card.querySelector('.btn-pilih');
+
+                if (checked.length === units.length && units.length > 0) {
+
+                    card.classList.add(
+                        'ring-2',
+                        'ring-blue-500',
+                        'border-blue-500'
+                    );
+
+                    button.textContent =
+                        '✓ Semua Unit Dipilih';
+
+                    button.classList.remove(
+                        'border-blue-200',
+                        'text-blue-600',
+                        'hover:bg-blue-50'
+                    );
+
+                    button.classList.add(
+                        'bg-blue-600',
+                        'text-white',
+                        'border-blue-600'
+                    );
+
+                } else {
+
+                    card.classList.remove(
+                        'ring-2',
+                        'ring-blue-500',
+                        'border-blue-500'
+                    );
+
+                    button.textContent =
+                        checked.length > 0
+                            ? '✓ ' + checked.length + ' Unit Dipilih'
+                            : 'Pilih Semua Unit';
+
+                    button.classList.remove(
+                        'bg-blue-600',
+                        'text-white',
+                        'border-blue-600'
+                    );
+
+                    button.classList.add(
+                        'border-blue-200',
+                        'text-blue-600',
+                        'hover:bg-blue-50'
+                    );
+
+                }
+
+            }
 
             /* ==========================================
    MODAL DETAIL ALAT
@@ -1202,8 +1227,8 @@ function bukaDetailAlat(card) {
     const kategori =
         card.dataset.kategoriDetail;
 
-    const kondisi =
-        card.dataset.kondisi;
+    const kode =
+        card.dataset.kode;
 
     const stok =
         card.dataset.stok;
@@ -1225,8 +1250,8 @@ function bukaDetailAlat(card) {
     detailKategori.textContent =
         kategori;
 
-    detailKondisi.textContent =
-        kondisi;
+    detailKode.textContent =
+        kode || '-';
 
     detailStok.textContent =
         stok + ' unit';
@@ -1362,8 +1387,49 @@ document.querySelectorAll('.btn-detail-alat')
             );
 
             /* ==========================================
-            PILIH ALAT DARI MODAL DETAIL
+            PILIH SEMUA UNIT DARI MODAL DETAIL
             ========================================== */
+
+            function pilihSemuaUnit(alatId) {
+
+                const card =
+                    document.querySelector(
+                        '.alat-card[data-id="' +
+                        alatId +
+                        '"]'
+                    );
+
+                if (!card) {
+                    return;
+                }
+
+
+                const units =
+                    card.querySelectorAll(
+                        '.unit-checkbox'
+                    );
+
+                const semuaDipilih =
+                    Array.from(units).every(
+                        function (unit) {
+                            return unit.checked;
+                        }
+                    );
+
+
+                units.forEach(function (unit) {
+
+                    unit.checked =
+                        !semuaDipilih;
+
+                    unit.dispatchEvent(
+                        new Event('change')
+                    );
+
+                });
+
+            }
+
 
             btnPilihDariDetail.addEventListener(
                 'click',
@@ -1373,29 +1439,12 @@ document.querySelectorAll('.btn-detail-alat')
                         this.dataset.id;
 
 
-                    const checkbox =
-                        document.querySelector(
-                            '.alat-checkbox[data-id="' +
-                            id +
-                            '"]'
-                        );
-
-
-                    if (!checkbox) {
+                    if (!id) {
                         return;
                     }
 
 
-                    /* Kalau belum dipilih */
-                    if (!checkbox.checked) {
-
-                        checkbox.checked = true;
-
-                        checkbox.dispatchEvent(
-                            new Event('change')
-                        );
-
-                    }
+                    pilihSemuaUnit(id);
 
 
                     /* Tutup modal */
@@ -1406,7 +1455,7 @@ document.querySelectorAll('.btn-detail-alat')
 
 
             /* ==========================================
-               TOMBOL PILIH ALAT
+               TOMBOL PILIH SEMUA UNIT
             ========================================== */
 
             document.querySelectorAll('.btn-pilih')
@@ -1414,24 +1463,8 @@ document.querySelectorAll('.btn-detail-alat')
 
                     button.addEventListener('click', function () {
 
-                        const id =
-                            this.dataset.id;
-
-
-                        const checkbox =
-                            document.querySelector(
-                                '.alat-checkbox[data-id="' +
-                                id +
-                                '"]'
-                            );
-
-
-                        checkbox.checked =
-                            !checkbox.checked;
-
-
-                        checkbox.dispatchEvent(
-                            new Event('change')
+                        pilihSemuaUnit(
+                            this.dataset.id
                         );
 
                     });
@@ -1440,111 +1473,27 @@ document.querySelectorAll('.btn-detail-alat')
 
 
             /* ==========================================
-               TOMBOL PLUS
+               CHECKBOX GAMBAR (pilih semua unit)
             ========================================== */
 
-            document.querySelectorAll('.btn-plus')
-                .forEach(function (button) {
+            checkboxes.forEach(function (checkbox) {
 
-                    button.addEventListener('click', function () {
+                checkbox.addEventListener('change', function () {
 
-                        const id =
-                            this.dataset.id;
+                    const card =
+                        this.closest('.alat-card');
 
+                    card.querySelectorAll('.unit-checkbox')
+                        .forEach(function (unit) {
 
-                        const input =
-                            document.querySelector(
-                                '.jumlah-input[data-id="' +
-                                id +
-                                '"]'
+                            unit.checked =
+                                this.checked;
+
+                            unit.dispatchEvent(
+                                new Event('change')
                             );
 
-
-                        const max =
-                            parseInt(this.dataset.max);
-
-
-                        let value =
-                            parseInt(input.value) || 1;
-
-
-                        if (value < max) {
-
-                            input.value =
-                                value + 1;
-
-                        }
-
-                    });
-
-                });
-
-
-            /* ==========================================
-               TOMBOL MINUS
-            ========================================== */
-
-            document.querySelectorAll('.btn-minus')
-                .forEach(function (button) {
-
-                    button.addEventListener('click', function () {
-
-                        const id =
-                            this.dataset.id;
-
-
-                        const input =
-                            document.querySelector(
-                                '.jumlah-input[data-id="' +
-                                id +
-                                '"]'
-                            );
-
-
-                        let value =
-                            parseInt(input.value) || 1;
-
-
-                        if (value > 1) {
-
-                            input.value =
-                                value - 1;
-
-                        }
-
-                    });
-
-                });
-
-
-            /* ==========================================
-               VALIDASI INPUT JUMLAH
-            ========================================== */
-
-            jumlahInputs.forEach(function (input) {
-
-                input.addEventListener('change', function () {
-
-                    let value =
-                        parseInt(this.value) || 1;
-
-
-                    const max =
-                        parseInt(this.max);
-
-
-                    if (value < 1) {
-                        value = 1;
-                    }
-
-
-                    if (value > max) {
-                        value = max;
-                    }
-
-
-                    this.value =
-                        value;
+                        }.bind(this));
 
                 });
 
@@ -1645,12 +1594,23 @@ document.querySelectorAll('.btn-detail-alat')
 
                 const selected =
                     document.querySelectorAll(
-                        '.alat-checkbox:checked'
+                        '.unit-checkbox:checked'
                     );
 
 
                 modalJumlahAlat.textContent =
                     selected.length;
+
+
+                const namaAlatUnik =
+                    [...new Set(
+                        [...selected].map(function (checkbox) {
+                            return checkbox.dataset.nama;
+                        })
+                    )];
+
+                modalDaftarNamaAlat.textContent =
+                    namaAlatUnik.join(', ');
 
 
                 modalDaftarAlat.innerHTML =
@@ -1659,40 +1619,22 @@ document.querySelectorAll('.btn-detail-alat')
 
                 selected.forEach(function (checkbox) {
 
-                    const id =
-                        checkbox.dataset.id;
-
-
                     const nama =
                         checkbox.dataset.nama;
 
-
-                    const input =
-                        document.querySelector(
-                            '.jumlah-input[data-id="' +
-                            id +
-                            '"]'
-                        );
-
-
-                    const jumlah =
-                        input
-                            ? input.value
-                            : 1;
+                    const serial =
+                        checkbox.dataset.serial;
 
 
                     const item =
                         document.createElement('div');
-
 
                     item.className =
                         'flex items-center justify-between ' +
                         'gap-3 bg-gray-50 border ' +
                         'border-gray-200 rounded-xl px-3 py-2.5';
 
-
                     item.innerHTML = `
-
                         <div class="flex items-center gap-3 min-w-0">
 
                             <div
@@ -1714,9 +1656,9 @@ document.querySelectorAll('.btn-detail-alat')
 
                         <span
                             class="text-sm font-semibold text-gray-600
-                                   whitespace-nowrap"
+                                   whitespace-nowrap font-mono"
                         >
-                            ${jumlah} pcs
+                            ${serial}
                         </span>
 
                     `;
@@ -1767,7 +1709,7 @@ document.querySelectorAll('.btn-detail-alat')
 
                     const selected =
                         document.querySelectorAll(
-                            '.alat-checkbox:checked'
+                            '.unit-checkbox:checked'
                         );
 
 
@@ -1845,10 +1787,10 @@ document.querySelectorAll('.btn-detail-alat')
 
 
             /* ==========================================
-               UPDATE MODAL SAAT JUMLAH BERUBAH
+               UPDATE MODAL SAAT UNIT DIPILIH BERUBAH
             ========================================== */
 
-            jumlahInputs.forEach(function (input) {
+            unitCheckboxes.forEach(function (input) {
 
                 input.addEventListener(
                     'change',
@@ -1879,3 +1821,110 @@ document.querySelectorAll('.btn-detail-alat')
     </script>
 
 @endsection
+
+@push('scripts')
+<script>
+    /*
+    | Tombol "+N unit lainnya" pada kartu alat.
+    |
+    | Kartu hanya menampilkan 4 serial pertama (grid 2 kolom) supaya
+    | katalog tidak memanjang tak terbatas ke bawah saat alat punya
+    | banyak unit.
+    |
+    | Klik PERTAMA memuat sisa serial via endpoint tanpa pindah halaman,
+    | lalu label tombol berubah jadi "Sembunyikan" (state terbuka).
+    | Klik kedua menyembunyikan serial tambahan tanpa menghapus DOM --
+    | hanya display:none -- supaya centangan yang sudah dipilih tidak
+    | hilang saat user buka-tutup berulang. Klik ketiga menampilkan
+    | lagi, dan seterusnya.
+    */
+    document.addEventListener('click', function (event) {
+        var btn = event.target.closest('.tampil-semua-serial');
+        if (!btn) return;
+
+        var alatId = btn.getAttribute('data-id');
+        var container = btn.closest('.mt-4');
+
+        // Sudah pernah dimuat? Toggle tampil saja.
+        var wrapper = container.querySelector('[data-extra-units]');
+
+        if (wrapper) {
+            var terbuka = wrapper.style.display === 'none';
+
+            wrapper.style.display = terbuka ? 'grid' : 'none';
+            btn.textContent = terbuka
+                ? 'Sembunyikan ' + (wrapper.dataset.totalExtra || '') + ' unit'
+                : '+ ' + (wrapper.dataset.totalExtra || '') + ' unit lainnya';
+            btn.setAttribute('aria-expanded', terbuka ? 'true' : 'false');
+
+            return;
+        }
+
+        // Belum pernah: muat dari endpoint.
+        wrapper = document.createElement('div');
+        wrapper.className = 'grid grid-cols-2 gap-2 mt-2';
+        wrapper.setAttribute('data-extra-units', '');
+
+        var labelAsli = btn.textContent;
+
+        btn.disabled = true;
+        btn.textContent = 'Memuat...';
+
+        var skip = btn.getAttribute('data-skip') || 4;
+
+        fetch('{{ route("peminjam.unit.alat", "__ID__") }}'.replace('__ID__', alatId)
+            + '?skip=' + encodeURIComponent(skip))
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                (data.units || []).forEach(function (unit) {
+                    var label = document.createElement('label');
+                    label.className = 'flex items-center gap-2 px-2.5 py-2 '
+                        + 'border border-gray-200 rounded-xl '
+                        + 'hover:bg-gray-50 cursor-pointer transition '
+                        + 'has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50';
+
+                    var input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.name = 'alat_unit_id[]';
+                    input.value = unit.id;
+                    input.className = 'unit-checkbox sr-only';
+                    input.setAttribute('data-alat-id', alatId);
+                    input.setAttribute('data-nama', data.nama_alat || '');
+                    input.setAttribute('data-serial', unit.serial_number);
+
+                    var kotak = document.createElement('span');
+                    kotak.className = 'w-4 h-4 shrink-0 rounded border border-gray-300 '
+                        + 'flex items-center justify-center text-white text-[10px] font-bold '
+                        + 'peer-checked:bg-blue-600 peer-checked:border-blue-600';
+                    kotak.setAttribute('aria-hidden', 'true');
+                    kotak.textContent = '✓';
+
+                    var teks = document.createElement('span');
+                    teks.className = 'text-sm text-gray-700 font-mono truncate';
+                    teks.textContent = unit.serial_number;
+
+                    label.appendChild(input);
+                    label.appendChild(kotak);
+                    label.appendChild(teks);
+                    wrapper.appendChild(label);
+                });
+
+                var total = data.units.length;
+                wrapper.dataset.totalExtra = total;
+
+                // Simpan serial awal (4 pertama) tetap tampil; tambahan
+                // masuk di bawah.
+                container.appendChild(wrapper);
+
+                btn.disabled = false;
+                btn.textContent = 'Sembunyikan ' + total + ' unit';
+                btn.setAttribute('aria-expanded', 'true');
+            })
+            .catch(function () {
+                btn.disabled = false;
+                btn.textContent = labelAsli;
+                alert('Gagal memuat unit. Coba lagi.');
+            });
+    });
+</script>
+@endpush

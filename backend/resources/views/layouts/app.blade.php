@@ -92,15 +92,6 @@
     {{-- ========================================= --}}
     @if(auth()->user()->role == 'admin')
 
-        {{-- Cetak Laporan (semua data pengembalian) --}}
-        <a href="{{ route('admin.laporan.index') }}"
-           class="block px-4 py-2 rounded-lg transition
-           {{ request()->routeIs('admin.laporan.*')
-                ? 'bg-gray-800 text-white font-medium shadow'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
-            Cetak Laporan
-        </a>
-
         {{-- Dashboard --}}
         <a href="{{ route('admin.dashboard') }}"
            class="block px-4 py-2 rounded-lg transition
@@ -155,6 +146,15 @@
             Kelola Pengembalian
         </a>
 
+        {{-- Cetak Laporan (semua data pengembalian) --}}
+        <a href="{{ route('admin.laporan.index') }}"
+           class="block px-4 py-2 rounded-lg transition
+           {{ request()->routeIs('admin.laporan.*')
+                ? 'bg-gray-800 text-white font-medium shadow'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
+            Cetak Laporan
+        </a>
+
                 {{-- Log Aktivitas --}}
         <a href="{{ route('admin.log_aktivitas.index') }}"
         class="block px-4 py-2 rounded-lg transition
@@ -189,15 +189,6 @@
                 Pemantauan Pengembalian
             </a>
 
-             {{-- Cetak Laporan --}}
-        <a href="{{ route('petugas.laporan.index') }}"
-           class="block px-4 py-2 rounded-lg transition
-           {{ request()->routeIs('petugas.laporan.*')
-                ? 'bg-gray-800 text-white font-medium shadow'
-                : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
-            Cetak Laporan
-        </a>
-
              {{-- Permintaan Edit Peminjaman --}}
         <a href="{{ route('petugas.edit-peminjaman.index') }}"
            class="block px-4 py-2 rounded-lg transition
@@ -205,6 +196,15 @@
                 ? 'bg-gray-800 text-white font-medium shadow'
                 : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
             Permintaan Edit Peminjaman
+        </a>
+
+        {{-- Cetak Laporan --}}
+        <a href="{{ route('petugas.laporan.index') }}"
+           class="block px-4 py-2 rounded-lg transition
+           {{ request()->routeIs('petugas.laporan.*')
+                ? 'bg-gray-800 text-white font-medium shadow'
+                : 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
+            Cetak Laporan
         </a>
 
     @endif
@@ -247,7 +247,7 @@
     class="list-none cursor-pointer relative text-gray-600 hover:text-gray-800 transition text-xl"
     title="Notifikasi">
 
-        🔔
+        
 
         @if(auth()->user()->unreadNotifications->count() > 0)
             <span
@@ -321,7 +321,7 @@
 </details>
 
     {{-- Logout --}}
-    <form action="{{ route('logout') }}" method="POST">
+    <form action="{{ route('logout') }}" method="POST" data-confirm-logout>
 
         @csrf
 
@@ -347,6 +347,10 @@
         </div>
 
     </div>
+
+    {{-- Stack script: halaman yang butuh JS tambahan (modal teleport, dll)
+         menaruhnya lewat @push('scripts'). --}}
+    @stack('scripts')
 
     @include('partials.motion')
 

@@ -15,7 +15,11 @@ class CheckRole
      */
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
-        //Cek apakah user sudah login dan apakah role nya ada di dalam parameter yang diizinkan
+        /*
+        | Otorisasi server-side. Mencegah user biasa mengakses halaman
+        | admin hanya dengan mengetik URL-nya secara langsung.
+        | $roles diisi dari definisi route, misal: ->middleware('role:admin').
+        */
         if (!auth()->check() || !in_array(auth()->user()->role, $roles)) {
             abort(403, 'Unauthorized action.');
         }

@@ -106,7 +106,7 @@
            hover:text-gray-800 transition text-xl"
     title="Notifikasi">
 
-            🔔
+            
 
             @if(auth()->user()->unreadNotifications->count() > 0)
                 <span
@@ -157,7 +157,7 @@
                         <div class="flex items-start gap-3">
 
                             <div class="text-lg">
-                                🔔
+                                
                             </div>
 
                             <div class="flex-1">
@@ -222,7 +222,7 @@
 
 
                     {{-- Logout --}}
-                    <form action="{{ route('logout') }}" method="POST">
+                    <form action="{{ route('logout') }}" method="POST" data-confirm-logout>
 
                         @csrf
 
@@ -283,7 +283,7 @@
                 </a>
 
 
-                <form action="{{ route('logout') }}" method="POST"
+                <form action="{{ route('logout') }}" method="POST" data-confirm-logout
                       class="inline">
 
                     @csrf
@@ -413,6 +413,10 @@
         </div>
 
     </footer>
+
+    {{-- Stack script: halaman yang butuh JS tambahan (katalog, dll)
+         menaruhnya lewat @push('scripts'). --}}
+    @stack('scripts')
 
     @include('partials.motion')
 

@@ -454,11 +454,11 @@
 
                                         <li>
                                             <span class="font-semibold">
-                                                {{ $detail->alat->nama_alat ?? 'Alat Dihapus' }}
+                                                {{ $detail->alatUnit->alat->nama_alat ?? 'Alat Dihapus' }}
                                             </span>
 
                                             <span class="text-xs bg-gray-200 px-1.5 py-0.5 rounded">
-                                                ({{ $detail->jumlah }} pcs)
+                                                ({{ $detail->alatUnit?->serial_number ?? '-' }})
                                             </span>
                                         </li>
 

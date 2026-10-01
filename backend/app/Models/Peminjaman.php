@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Peminjaman extends Model
 {
+    // Tabel ini adalah pusat dari alur peminjaman:
+    // diajukan -> dipinjam -> (telat) -> dikembalikan.
+    // Perubahan status dari method manapun akan tercatat di
+    // log_aktivitas lewat PeminjamanObserver (lihat AppServiceProvider).
     protected $table = 'peminjaman';
 
     protected $fillable = [

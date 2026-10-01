@@ -289,8 +289,8 @@
                                     @foreach($pengembalian->peminjaman->detailPinjams as $detail)
 
                                         <li>
-                                            {{ $detail->alat->nama_alat ?? 'Alat Dihapus' }}
-                                            ({{ $detail->jumlah }} pcs)
+                                            {{ $detail->alatUnit?->alat->nama_alat ?? 'Alat Dihapus' }}
+                                            ({{ $detail->alatUnit?->serial_number ?? '-' }})
                                         </li>
 
                                     @endforeach

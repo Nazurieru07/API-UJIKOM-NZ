@@ -170,15 +170,15 @@
 
                                     <li>
 
-                                        {{ $detail->alat->nama_alat ?? 'Alat Dihapus' }}
+                                        {{ $detail->alatUnit->alat->nama_alat ?? 'Alat Dihapus' }}
 
                                         <span class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">
-                                            {{ $detail->jumlah }} pcs
+                                            {{ $detail->alatUnit?->serial_number ?? '-' }}
                                         </span>
 
-                                        @if($detail->alat && $detail->alat->kategori)
+                                        @if($detail->alatUnit && $detail->alatUnit->alat && $detail->alatUnit->alat->kategori)
                                             <span class="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
-                                                {{ $detail->alat->kategori->nama_kategori }}
+                                                {{ $detail->alatUnit->alat->kategori->nama_kategori }}
                                             </span>
                                         @endif
 
@@ -240,12 +240,8 @@
                     Baik
                 </option>
 
-                <option value="Rusak Ringan">
-                    Rusak Ringan
-                </option>
-
-                <option value="Rusak Berat">
-                    Rusak Berat
+                <option value="Rusak">
+                    Rusak
                 </option>
 
             </select>
@@ -298,6 +294,10 @@
 
         </table>
 
+    </div>
+
+    <div class="mt-4">
+        {{ $peminjamans->links() }}
     </div>
 
 </div>

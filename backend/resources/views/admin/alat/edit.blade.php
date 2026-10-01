@@ -46,44 +46,31 @@
             </select>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="mb-4">
+            <label class="block text-gray-700 text-sm font-semibold mb-2">
+                Kode Alat
+                <span class="text-xs text-gray-400 font-normal">
+                    (Prefix serial number, 2 huruf)
+                </span>
+            </label>
 
-            <div>
-                <label class="block text-gray-700 text-sm font-semibold mb-2">
-                    Stok
-                </label>
+            <input
+                type="text"
+                name="kode_alat"
+                value="{{ old('kode_alat', $alat->kode_alat) }}"
+                required
+                maxlength="2"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg uppercase font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
 
-                <input
-                    type="number"
-                    name="stok"
-                    value="{{ old('stok', $alat->stok) }}"
-                    min="0"
-                    required
-                    class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-            </div>
+            <p class="text-xs text-amber-600 mt-1">
+                Changing kode alat tidak mengubah serial number unit yang sudah
+                dibuat. Serial lama tetap memakai prefix sebelumnya.
+            </p>
 
-            <div>
-    <label class="block text-gray-700 text-sm font-semibold mb-2">
-        Kondisi Saat Ini (otomatis)
-    </label>
-
-    <input
-        type="text"
-        value="{{ $alat->status_kondisi }}"
-        disabled
-        class="w-full px-3 py-2 border border-gray-200 bg-gray-100 text-gray-600 rounded-lg cursor-not-allowed"
-    >
-
-    <p class="text-xs text-gray-400 mt-1">
-        Kondisi dihitung otomatis dari mayoritas stok:
-        Baik {{ $alat->stok_baik }} pcs,
-        Rusak Ringan {{ $alat->stok_rusak }} pcs,
-        Rusak Parah {{ $alat->stok_rusak_parah }} pcs.
-        Gunakan menu "Ubah Kondisi" untuk mengubahnya.
-    </p>
-</div>
-
+            @error('kode_alat')
+                <span class="text-red-500 text-xs">{{ $message }}</span>
+            @enderror
         </div>
 
         <div class="mb-4">
@@ -143,6 +130,61 @@
         </div>
 
     </form>
+
+    {{-- Daftar Unit: tampilan saja. Aksi per unit ada di index (Kelola Unit)
+         supaya form edit alat tidak jadi submit kedua. --}}
+    <div class="mt-8 pt-6 border-t border-gray-200">
+        <h3 class="text-base font-bold text-gray-800 mb-1">Daftar Unit</h3>
+
+        <p class="text-xs text-gray-400 mb-4">
+            {{ $alat->alatUnit->count() }} unit terdaftar. Ubah kondisi unit
+            (tandai rusak / perbaiki) dari halaman utama lewat tombol
+            "Kelola Unit".
+        </p>
+
+        <div class="border border-gray-200 rounded-lg overflow-hidden">
+            <table class="w-full text-left text-sm">
+                <thead>
+                    <tr class="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider">
+                        <th class="py-2 px-4 border-b">Serial Number</th>
+                        <th class="py-2 px-4 border-b">Kondisi</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @forelse($alat->alatUnit as $unit)
+                        <tr class="hover:bg-gray-50">
+                            <td class="py-2 px-4 border-b font-mono text-xs">
+                                {{ $unit->serial_number }}
+                            </td>
+
+                            <td class="py-2 px-4 border-b">
+                                @if($unit->isTersedia())
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold">
+                                        Tersedia
+                                    </span>
+                                @elseif($unit->isDipinjam())
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold">
+                                        Dipinjam
+                                    </span>
+                                @elseif($unit->isRusak())
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-xs font-semibold">
+                                        Rusak
+                                    </span>
+                                @endif
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="2" class="py-4 px-4 text-center text-gray-400 text-xs">
+                                Belum ada unit terdaftar.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
+        </div>
+    </div>
 
 </div>
 

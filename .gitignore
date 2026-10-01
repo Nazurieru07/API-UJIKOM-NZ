@@ -20,3 +20,7 @@ Thumbs.db
 
 # Docker
 *.log
+
+# Backup & recovery data (DB dump, binlog, compiled views)
+_serial_backup/
+_recovery/

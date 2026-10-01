@@ -33,7 +33,28 @@ services:
     networks:
       - API-UJIKOM
 
-  # 3. SERVER UI DATABASE (PHPMYADMIN)
+  # 3 SCHEDULER (jalan otomatis setiap menit)
+  # Tanpa service ini, Schedule::command() di routes/console.php
+  # tidak pernah dieksekusi: `php artisan serve` hanya menangani HTTP
+  # request, tidak menjalankan scheduler. Akibatnya status peminjaman
+  # tidak pernah otomatis berubah jadi "telat" -- harus dijalankan manual.
+  laravel-scheduler:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: laravel-scheduler
+    user: "1000:1000"
+    working_dir: /var/www
+    volumes:
+      - ./backend:/var/www
+    command: php artisan schedule:work
+    depends_on:
+      - mysql-server
+    networks:
+      - API-UJIKOM
+    restart: unless-stopped
+
+  # 4 SERVER UI DATABASE (PHPMYADMIN)
   phpMyadmin:
     image: phpmyadmin
     container_name: phpMyadmin-API

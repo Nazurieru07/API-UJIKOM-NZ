@@ -10,6 +10,11 @@ class PengembalianObserver
 {
     /**
      * Ketika pengembalian dibuat.
+     *
+     * Dipanggil saat petugas/admin mengajukan pengembalian.
+     * Pengembalian belum final saat ini: status_request masih
+     * diproses sampai admin menyetujui/menolak. Stok alat belum
+     * dikembalikan di titik ini, baru disetujui.
      */
     public function created(Pengembalian $pengembalian): void
     {

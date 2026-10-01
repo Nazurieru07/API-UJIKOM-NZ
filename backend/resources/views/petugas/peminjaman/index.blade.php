@@ -178,20 +178,19 @@
                                             type="button"
                                             class="font-semibold text-blue-600 hover:text-blue-800 hover:underline transition"
                                             onclick='openAlatModal({
-                                                nama: @json($detail->alat->nama_alat),
-                                                kategori: @json(optional($detail->alat->kategori)->nama_kategori ?? "-"),
-                                                stok: {{ $detail->alat->stok }},
-                                                stok_baik: {{ $detail->alat->stok_baik }},
-                                                stok_rusak: {{ $detail->alat->stok_rusak }},
-                                                stok_rusak_parah: {{ $detail->alat->stok_rusak_parah }},
-                                                deskripsi: @json($detail->alat->deskripsi ?? "Tidak ada deskripsi.")
+                                                nama: @json($detail->alatUnit->alat->nama_alat),
+                                                kategori: @json(optional($detail->alatUnit->alat->kategori)->nama_kategori ?? "-"),
+                                                jumlah_tersedia: {{ $detail->alatUnit->alat->alatUnit->where('kondisi', 'tersedia')->count() }},
+                                                jumlah_dipinjam: {{ $detail->alatUnit->alat->alatUnit->where('kondisi', 'dipinjam')->count() }},
+                                                jumlah_rusak: {{ $detail->alatUnit->alat->alatUnit->where('kondisi', 'rusak')->count() }},
+                                                deskripsi: @json($detail->alatUnit->alat->deskripsi ?? "Tidak ada deskripsi.")
                                             })'>
 
-                                            {{ $detail->alat->nama_alat ?? 'Alat Dihapus' }}
+                                            {{ $detail->alatUnit->alat->nama_alat ?? 'Alat Dihapus' }}
 
                                         </button>
                                             <br>
-                                            (Jumlah: {{ $detail->jumlah }})
+                                            ({{ $detail->alatUnit?->serial_number ?? '-' }})
                                         </li>
                                     @endforeach
                                 </ul>
@@ -307,19 +306,18 @@
             <div class="grid grid-cols-2 gap-4">
 
                 <div>
-                    <p class="text-sm text-gray-500">Total Stok</p>
-                    <p id="modalStok" class="font-semibold"></p>
+                    <p class="text-sm text-gray-500">Tersedia</p>
+                    <p id="modalTersedia" class="font-semibold"></p>
                 </div>
 
                 <div>
-                    <p class="text-sm text-gray-500">Kondisi</p>
+                    <p class="text-sm text-gray-500">Sedang Dipinjam</p>
+                    <p id="modalDipinjam" class="font-semibold"></p>
+                </div>
 
-                    <div class="text-sm mt-1 space-y-1">
-                        <div>Baik: <span id="modalBaik"></span></div>
-                        <div>Rusak: <span id="modalRusak"></span></div>
-                        <div>Rusak Parah: <span id="modalParah"></span></div>
-                    </div>
-
+                <div>
+                    <p class="text-sm text-gray-500">Rusak</p>
+                    <p id="modalRusak" class="font-semibold"></p>
                 </div>
 
             </div>
@@ -357,10 +355,9 @@ function openAlatModal(alat) {
 
     document.getElementById('modalNama').textContent = alat.nama;
     document.getElementById('modalKategori').textContent = alat.kategori;
-    document.getElementById('modalStok').textContent = alat.stok + ' pcs';
-    document.getElementById('modalBaik').textContent = alat.stok_baik;
-    document.getElementById('modalRusak').textContent = alat.stok_rusak;
-    document.getElementById('modalParah').textContent = alat.stok_rusak_parah;
+    document.getElementById('modalTersedia').textContent = alat.jumlah_tersedia + ' unit';
+    document.getElementById('modalDipinjam').textContent = alat.jumlah_dipinjam + ' unit';
+    document.getElementById('modalRusak').textContent = alat.jumlah_rusak + ' unit';
     document.getElementById('modalDeskripsi').textContent = alat.deskripsi;
 
     const modal = document.getElementById('alatModal');

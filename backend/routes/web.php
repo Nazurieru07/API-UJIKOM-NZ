@@ -14,11 +14,11 @@ Route::get('/', function () {
 |==========================================================================
 | ROUTE ADMIN
 |==========================================================================
-| Middleware 'role:admin' = cek server-side: user harus login DAN
+| Middleware 'user.aktif' = cek server-side: user harus login DAN
 | role-nya admin. Tanpa ini, siapapun bisa masuk menu admin dengan
 | mengetik URL langsung. Middleware ini di-alias di bootstrap/app.php.
 */
-Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth', 'user.aktif', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
 
     // ROUTE LAPORAN (admin melihat semua data pengembalian)
@@ -105,6 +105,7 @@ Route::post('/pengembalian/{id}/setujui', [AdminController::class, 'setujuiPenge
     Route::get('/alat/{id}/edit', [AdminController::class, 'editAlat'])->name('alat.edit');
     Route::put('/alat/{id}', [AdminController::class, 'updateAlat'])->name('alat.update');
     Route::delete('/alat/{id}', [AdminController::class, 'destroyAlat'])->name('alat.destroy');
+Route::post('/alat/{id}/restore', [AdminController::class, 'restoreAlat'])->name('alat.restore');
     Route::post('/alat/{id}/perbaiki', [AdminController::class, 'perbaikiAlat'])
     ->name('alat.perbaiki');
 
@@ -118,11 +119,20 @@ Route::post('/pengembalian/{id}/setujui', [AdminController::class, 'setujuiPenge
     Route::get('/users/{id}/edit', [AdminController::class, 'editUser'])->name('user.edit');
     Route::put('/users/{id}', [AdminController::class, 'updateUser'])->name('user.update');
     Route::delete('/users/{id}', [AdminController::class, 'destroyUser'])->name('user.destroy');
+    Route::post('/users/{id}/toggle-aktif', [AdminController::class, 'toggleUserAktif'])->name('user.toggle-aktif');
+
+    // Route unit serial alat (menu "Kelola Unit" di daftar alat).
+    // Nama route ini dipakai view admin/alat/index.blade.php lewat
+    // Route::has() -- jangan diubah tanpa update view-nya.
+    Route::post('/alat/{id}/unit', [AdminController::class, 'storeUnit'])->name('alat.unit.store');
+    Route::post('/alat/{id}/unit/rusak', [AdminController::class, 'tandaiRusak'])->name('alat.unit.tandaiRusak');
+    Route::post('/alat/{id}/unit/perbaiki', [AdminController::class, 'perbaiki'])->name('alat.unit.perbaiki');
+    Route::delete('/alat/{id}/unit/{unitId}', [AdminController::class, 'hapusUnit'])->name('alat.unit.hapus');
 
 });
 
 // petugas
-Route::middleware(['auth', 'role:petugas'])->prefix('petugas')->name('petugas.')->group(function () {
+Route::middleware(['auth', 'user.aktif', 'role:petugas'])->prefix('petugas')->name('petugas.')->group(function () {
     
     Route::get('/peminjaman', [PetugasController::class, 'indexPeminjaman'])
         ->name('peminjaman.index');
@@ -161,11 +171,16 @@ Route::middleware(['auth', 'role:petugas'])->prefix('petugas')->name('petugas.')
 });
 
 // peminjam
-Route::middleware(['auth', 'role:peminjam'])->prefix('peminjam')->name('peminjam.')->group(function () {
+Route::middleware(['auth', 'user.aktif', 'role:peminjam'])->prefix('peminjam')->name('peminjam.')->group(function () {
 
     // Katalog
     Route::get('/katalog', [PeminjamController::class, 'katalogAlat'])
         ->name('katalog');
+
+    // Sisa unit serial sebuah alat (dipakai tombol "+N unit lainnya"
+    // di kartu katalog supaya kartu tidak memanjang).
+    Route::get('/alat/{id}/unit', [PeminjamController::class, 'unitAlatJson'])
+        ->name('unit.alat');
 
     Route::post('/peminjaman/ajukan', [PeminjamController::class, 'ajukanPeminjaman'])
         ->name('peminjaman.ajukan');
@@ -192,7 +207,7 @@ Route::middleware('guest')->group(function () {
 // Route Logout (Harus sudah login)
 Route::post('/logout', [AuthController::class, 'logout'])
     ->name('logout')
-    ->middleware('auth');
+    ->middleware(['auth', 'user.aktif']);
 
 
 
@@ -202,4 +217,4 @@ Route::post('/notifications/read-all', function () {
     return response()->json([
         'success' => true
     ]);
-})->middleware('auth')->name('notifications.readAll');
+})->name('notifications.readAll')->middleware(['auth', 'user.aktif']);

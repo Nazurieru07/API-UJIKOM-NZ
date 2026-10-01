@@ -29,6 +29,13 @@ class PeminjamanObserver
 
     /**
      * Ketika peminjaman diperbarui.
+     *
+     * PENTING: observer hanya terpanggil jika model disimpan per
+     * instance ($peminjaman->save() / ->update()). Mass update lewat
+     * query builder -- Peminjaman::where(...)->update() -- MELEWATI
+     * observer, jadi log perubahan status tidak tercatat.
+     * Itu sebabnya pengecekan status telat dipindah ke
+     * app/Console/Commands/HitungPeminjamanTelat.php.
      */
     public function updated(Peminjaman $peminjaman): void
     {
@@ -40,7 +47,8 @@ class PeminjamanObserver
 
         $namaUser = $peminjaman->user->name ?? 'User';
 
-        // Jika status berubah
+        // isDirty('status') = status sebelum vs sesudah berbeda.
+        // getOriginal = nilai lama dari database, bukan nilai baru.
         if ($peminjaman->isDirty('status')) {
 
             $statusLama = $peminjaman->getOriginal('status');

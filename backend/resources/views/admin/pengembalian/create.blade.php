@@ -85,10 +85,10 @@
                             @foreach($peminjaman->detailPinjams as $detail)
 
                                 <li>
-                                    {{ $detail->alat->nama_alat }}
+                                    {{ $detail->alatUnit->alat->nama_alat }}
 
                                     <span class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded">
-                                        {{ $detail->jumlah }} pcs
+                                        {{ $detail->alatUnit?->serial_number ?? '-' }}
                                     </span>
                                 </li>
 
@@ -199,17 +199,10 @@
                 </option>
 
                 <option
-                    value="Rusak Ringan"
-                    {{ old('kondisi_kembali') == 'Rusak Ringan' ? 'selected' : '' }}
+                    value="Rusak"
+                    {{ old('kondisi_kembali') == 'Rusak' ? 'selected' : '' }}
                 >
-                    Rusak Ringan
-                </option>
-
-                <option
-                    value="Rusak Berat"
-                    {{ old('kondisi_kembali') == 'Rusak Berat' ? 'selected' : '' }}
-                >
-                    Rusak Berat
+                    Rusak
                 </option>
 
             </select>
