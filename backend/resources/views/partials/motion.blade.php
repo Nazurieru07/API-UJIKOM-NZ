@@ -262,6 +262,107 @@
             width: calc(100vw - 1.5rem);
         }
     }
+
+    .logout-confirm-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        background: rgba(15, 23, 42, .45);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .2s ease;
+    }
+
+    .logout-confirm-overlay.is-open {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .logout-confirm-card {
+        width: min(26rem, calc(100vw - 2rem));
+        background: #fff;
+        border-radius: .9rem;
+        box-shadow: 0 22px 60px rgba(15, 23, 42, .32);
+        padding: 1.6rem 1.5rem 1.35rem;
+        text-align: center;
+        transform: translateY(12px) scale(.97);
+        transition: transform .22s cubic-bezier(.22, .8, .25, 1);
+    }
+
+    .logout-confirm-overlay.is-open .logout-confirm-card {
+        transform: translateY(0) scale(1);
+    }
+
+    .logout-confirm-icon {
+        display: grid;
+        place-items: center;
+        width: 3.25rem;
+        height: 3.25rem;
+        margin: 0 auto .9rem;
+        font-size: 1.5rem;
+        color: #dc2626;
+        background: #fef2f2;
+        border-radius: 999px;
+    }
+
+    .logout-confirm-title {
+        margin: 0 0 .4rem;
+        font-size: 1.075rem;
+        font-weight: 700;
+        color: #111827;
+    }
+
+    .logout-confirm-message {
+        margin: 0 0 1.3rem;
+        font-size: .825rem;
+        line-height: 1.5;
+        color: #6b7280;
+    }
+
+    .logout-confirm-actions {
+        display: flex;
+        gap: .6rem;
+        justify-content: center;
+    }
+
+    .logout-confirm-actions button {
+        min-width: 7rem;
+        padding: .6rem 1rem;
+        border-radius: .6rem;
+        font-size: .875rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color .15s ease, transform .12s ease;
+    }
+
+    .logout-confirm-cancel {
+        background: #f3f4f6;
+        color: #374151;
+        border: 1px solid #e5e7eb;
+    }
+
+    .logout-confirm-cancel:hover {
+        background: #e5e7eb;
+    }
+
+    .logout-confirm-ok {
+        background: #dc2626;
+        color: #fff;
+        border: 1px solid #dc2626;
+    }
+
+    .logout-confirm-ok:hover {
+        background: #b91c1c;
+    }
+
+    .logout-confirm-actions button:active {
+        transform: translateY(1px);
+    }
+
 </style>
 
 @if($motionFlash)
@@ -374,10 +475,7 @@
             return;
         }
         event.preventDefault();
-        if (window.confirm('Yakin ingin keluar dari akun ini?')) {
-            form.dataset.confirmed = '1';
-            form.requestSubmit();
-        }
+        showLogoutConfirm(form);
     });
 
     /*
@@ -387,6 +485,75 @@
     | memakai data-close-modal supaya tidak bergantung pada struktur DOM
     | hasil teleport (parentElement tidak menunjuk ke details lagi).
     */
+    /*
+    | Modal konfirmasi logout.
+    |
+    | window.confirm() terlalu standar dan pesannya tidak bisa
+    | di-style. Modal ini memakai token desain yang sama dengan toast
+    | (warna merah untuk aksi destruktif, border-top aksen).
+    |
+    | Modal di-append ke <body> sekali saja, lalu dipakai ulang.
+    | Form yang memicunya disimpan di data-form-id supaya submit
+    | lanjutannya mengenai form yang benar.
+    */
+    function showLogoutConfirm(form) {
+        if (form.id) form.dataset.formId = form.id;
+        else { form.id = 'logout-form-' + Date.now(); form.dataset.formId = form.id; }
+
+        var overlay = document.getElementById('logout-confirm');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'logout-confirm';
+            overlay.className = 'logout-confirm-overlay';
+            overlay.setAttribute('role', 'alertdialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.setAttribute('aria-labelledby', 'logout-confirm-title');
+            overlay.setAttribute('aria-describedby', 'logout-confirm-message');
+
+            overlay.innerHTML = ''
+                + '<div class="logout-confirm-card">'
+                + '  <div class="logout-confirm-icon" aria-hidden="true">⏻</div>'
+                + '  <h3 class="logout-confirm-title" id="logout-confirm-title">Keluar dari akun?</h3>'
+                + '  <p class="logout-confirm-message" id="logout-confirm-message">'
+                + '    Sesi kamu akan ditutup. Pekerjaan yang belum disimpan di halaman ini akan hilang.'
+                + '  </p>'
+                + '  <div class="logout-confirm-actions">'
+                + '    <button type="button" class="logout-confirm-cancel" id="logout-confirm-cancel">Batal</button>'
+                + '    <button type="button" class="logout-confirm-ok" id="logout-confirm-ok">Ya, keluar</button>'
+                + '  </div>'
+                + '</div>';
+
+            document.body.appendChild(overlay);
+
+            overlay.querySelector('#logout-confirm-cancel').addEventListener('click', function () {
+                closeLogoutConfirm();
+            });
+            overlay.querySelector('#logout-confirm-ok').addEventListener('click', function () {
+                var target = document.getElementById(overlay.dataset.formId);
+                if (target) {
+                    target.dataset.confirmed = '1';
+                    target.requestSubmit();
+                }
+                closeLogoutConfirm();
+            });
+            overlay.addEventListener('click', function (event) {
+                if (event.target === overlay) closeLogoutConfirm();
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && overlay.classList.contains('is-open')) closeLogoutConfirm();
+            });
+        }
+
+        overlay.dataset.formId = form.dataset.formId;
+        overlay.classList.add('is-open');
+        overlay.querySelector('#logout-confirm-ok').focus();
+    }
+
+    function closeLogoutConfirm() {
+        var overlay = document.getElementById('logout-confirm');
+        if (overlay) overlay.classList.remove('is-open');
+    }
+
     document.addEventListener('click', function (event) {
         var btn = event.target.closest('[data-close-modal]');
         if (!btn) return;

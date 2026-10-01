@@ -230,8 +230,10 @@
 <div class="motion-main flex-1 min-w-0 flex flex-col overflow-y-auto overflow-x-hidden">
 
 
-            <!-- NAVBAR ATAS -->
-            <header class="motion-topbar bg-white shadow-sm h-16 flex items-center justify-between px-6 z-10">
+            <!-- NAVBAR ATAS: sticky supaya notifikasi + tombol logout
+                 tetap di atas saat konten di-scroll. -->
+            <header class="motion-topbar sticky top-0 bg-white shadow-sm h-16
+                           flex items-center justify-between px-6 z-50">
 
                 <div class="text-lg font-semibold text-gray-800">
                     @yield('header-title', 'Dashboard')
