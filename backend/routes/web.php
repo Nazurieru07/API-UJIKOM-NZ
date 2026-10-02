@@ -5,6 +5,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\PetugasController;
 use App\Http\Controllers\PeminjamController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ProfileController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -193,6 +194,19 @@ Route::middleware(['auth', 'user.aktif', 'role:peminjam'])->prefix('peminjam')->
     Route::post('/peminjaman/{id}/edit', [PeminjamController::class, 'ajukanEditPeminjaman'])
         ->name('edit.ajukan');
 
+});
+
+/*
+|==========================================================================
+| ROUTE PROFIL SAYANG
+|==========================================================================
+| Setiap user (admin, petugas, peminjam) mengelola data dan foto
+| profilnya sendiri. Perubahan menulis ke record `users` yang sama, jadi
+| menu "Kelola User" admin langsung memperlihatkan data terbaru.
+*/
+Route::middleware(['auth', 'user.aktif'])->group(function () {
+    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
 });
 
 // Route Tamu (Belum Login)

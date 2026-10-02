@@ -102,16 +102,20 @@
 
         <summary
     id="notificationBell"
-    class="list-none cursor-pointer relative text-gray-600
-           hover:text-gray-800 transition text-xl"
+    class="list-none cursor-pointer relative w-8 h-8 flex items-center justify-center
+           text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition"
     title="Notifikasi">
 
-            
+            {{-- Ikon lonceng statis (folder public/images di-serve langsung,
+                 tidak terkena compile asset). --}}
+            <img src="{{ asset('images/notification.png') }}"
+                 alt="Notifikasi"
+                 class="w-6 h-6 object-contain select-none pointer-events-none">
 
             @if(auth()->user()->unreadNotifications->count() > 0)
                 <span
     id="notificationBadge"
-    class="absolute -top-2 -right-2 bg-red-500 text-white
+    class="absolute -top-1 -right-1 bg-red-500 text-white
            text-xs font-bold min-w-[20px] h-5 px-1
            rounded-full flex items-center justify-center">
 
@@ -197,28 +201,34 @@
     </details>
 
 
-    {{-- Informasi user --}}
-    <div class="hidden sm:block text-right">
+    {{-- Informasi user + avatar: klik untuk ke halaman profil --}}
+    <a href="{{ route('profile.edit') }}"
+       class="motion-user-link flex items-center gap-3 pr-2 pl-1 py-1
+              rounded-lg hover:bg-gray-100 transition group">
 
-                        <p class="text-sm font-semibold text-gray-800">
-                            {{ auth()->user()->name }}
-                        </p>
+        <div class="hidden sm:block text-right">
+            <p class="text-sm font-semibold text-gray-800">
+                {{ auth()->user()->name }}
+            </p>
+            <p class="text-xs text-gray-500">
+                {{ ucfirst(auth()->user()->role) }}
+            </p>
+        </div>
 
-                        <p class="text-xs text-gray-500">
-                            Peminjam
-                        </p>
+        @if(auth()->user()->foto_profile)
+            <img src="{{ asset(auth()->user()->foto_profile) }}"
+                 alt="{{ auth()->user()->name }}"
+                 class="w-10 h-10 rounded-full object-cover border">
+        @else
+            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center
+                        text-blue-600 font-bold">
+                {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
+            </div>
+        @endif
 
-                    </div>
+    </a>
 
-
-                    {{-- Avatar --}}
-                    <div class="w-10 h-10 rounded-full bg-blue-100
-                                flex items-center justify-center
-                                text-blue-600 font-bold">
-
-                        {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
-
-                    </div>
+    <div class="w-px h-8 bg-gray-200"></div>
 
 
                     {{-- Logout --}}

@@ -54,7 +54,28 @@ services:
       - API-UJIKOM
     restart: unless-stopped
 
-  # 4 SERVER UI DATABASE (PHPMYADMIN)
+  # 4 QUEUE WORKER (memproses notifikasi & job async)
+  # Notifikasi implements ShouldQueue, jadi masuk ke table `jobs`
+  # dulu sebelum benar-benar tersimpan ke `notifications`. Tanpa
+  # service ini notifikasi hanya menumpuk di `jobs` dan tidak pernah
+  # sampai ke user -- seolah-olah notifikasi "tidak terkirim".
+  laravel-queue:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: laravel-queue
+    user: "1000:1000"
+    working_dir: /var/www
+    volumes:
+      - ./backend:/var/www
+    command: php artisan queue:work --tries=3 --backoff=5
+    depends_on:
+      - mysql-server
+    networks:
+      - API-UJIKOM
+    restart: unless-stopped
+
+  # 5 SERVER UI DATABASE (PHPMYADMIN)
   phpMyadmin:
     image: phpmyadmin
     container_name: phpMyadmin-API

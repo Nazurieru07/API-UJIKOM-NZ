@@ -16,6 +16,15 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => \App\Http\Middleware\CheckRole::class,
             'user.aktif' => \App\Http\Middleware\CekUserAktif::class,
         ]);
+
+        // Catat halaman web yang dibuka user ke session. Dipakai tombol
+        // "Kembali" di halaman profil; lihat SimpanRiwayatHalaman.
+        //
+        // HARUS di grup 'web', bukan global: middleware global jalan
+        // SEBELUM StartSession (yang ada di grup web), jadi session
+        // belum dibuka dan session()->put() diam-diam tidak menyimpan
+        // apa pun. Di grup web, posisi setelah StartSession.
+        $middleware->appendToGroup('web', \App\Http\Middleware\SimpanRiwayatHalaman::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

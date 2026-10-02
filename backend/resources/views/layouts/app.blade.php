@@ -213,15 +213,31 @@
 
 
             <!-- INFORMASI USER -->
-            <div class="p-4 border-t border-gray-800 text-sm text-gray-400">
+            <a href="{{ route('profile.edit') }}"
+               class="motion-user-link p-4 border-t border-gray-800 text-sm text-gray-400
+                      flex items-center gap-3 hover:bg-gray-800 transition group">
 
-                Logged in as:
+                @if(auth()->user()->foto_profile)
+                    <img src="{{ asset(auth()->user()->foto_profile) }}"
+                         alt="{{ auth()->user()->name }}"
+                         class="w-10 h-10 rounded-full object-cover border border-gray-700 flex-shrink-0">
+                @else
+                    <div class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center
+                                text-white font-bold flex-shrink-0">
+                        {{ strtoupper(substr(auth()->user()->name, 0, 1)) }}
+                    </div>
+                @endif
 
-                <span class="text-white font-semibold">
-                    {{ auth()->user()->name }}
-                </span>
+                <div class="min-w-0">
+                    <span class="block text-white font-semibold truncate">
+                        {{ auth()->user()->name }}
+                    </span>
+                    <span class="block text-xs text-gray-500 group-hover:text-gray-300 transition">
+                        Lihat &amp; ubah profil
+                    </span>
+                </div>
 
-            </div>
+            </a>
 
         </aside>
 
@@ -246,15 +262,20 @@
 
     <summary
     id="notificationBell"
-    class="list-none cursor-pointer relative text-gray-600 hover:text-gray-800 transition text-xl"
+    class="list-none cursor-pointer relative w-8 h-8 flex items-center justify-center
+           text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition"
     title="Notifikasi">
 
-        
+        {{-- Ikon lonceng statis (folder public/images di-serve langsung,
+             tidak terkena compile asset). --}}
+        <img src="{{ asset('images/notification.png') }}"
+             alt="Notifikasi"
+             class="w-6 h-6 object-contain select-none pointer-events-none">
 
         @if(auth()->user()->unreadNotifications->count() > 0)
             <span
     id="notificationBadge"
-    class="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold
+    class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold
            min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center">
     {{ auth()->user()->unreadNotifications->count() }}
 </span>

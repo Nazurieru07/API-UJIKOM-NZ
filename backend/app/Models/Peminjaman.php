@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -13,6 +14,8 @@ class Peminjaman extends Model
     // diajukan -> dipinjam -> (telat) -> dikembalikan.
     // Perubahan status dari method manapun akan tercatat di
     // log_aktivitas lewat PeminjamanObserver (lihat AppServiceProvider).
+    use HasFactory;
+
     protected $table = 'peminjaman';
 
     protected $fillable = [

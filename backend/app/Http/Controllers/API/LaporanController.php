@@ -29,9 +29,12 @@ class LaporanController extends Controller
         }
 
         // 2. Eager loading untuk mencegah masalah N+1 Query
+        // Setelah migrasi serial: detail_pinjam merujuk ke alat_unit,
+        // bukan ke alat langsung. Relasi 'alat' lama sudah dihapus dari
+        // DetailPinjam -- pakai alatUnit.alat untuk sampai ke alatnya.
         $query = Peminjaman::with([
             'user',
-            'detailPinjams.alat',
+            'detailPinjams.alatUnit.alat',
             'pengembalian.petugas'
         ]);
 
