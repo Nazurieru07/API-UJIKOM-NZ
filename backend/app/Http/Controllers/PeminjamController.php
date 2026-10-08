@@ -11,7 +11,10 @@ use App\Notifications\PeminjamanDiajukanNotification;
 use App\Models\PermintaanEditPeminjaman;
 use App\Models\DetailPermintaanEdit;
 use App\Notifications\PermintaanEditDiajukanNotification;
+use App\Models\Pengembalian;
+use App\Notifications\PengembalianDiajukanPeminjamNotification;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 
 
@@ -232,6 +235,9 @@ class PeminjamController extends Controller
     {
         $peminjamans = Peminjaman::with([
             'detailPinjams.alatUnit.alat',
+            // Status pengembalian (menunggu/disetujui/ditolak) ditampilkan
+            // di riwayat; eager-load supaya tidak N+1.
+            'pengembalian',
         ])
         ->where('user_id', auth()->id())
         ->latest('created_at')
@@ -351,5 +357,120 @@ class PeminjamController extends Controller
                 ->withInput()
                 ->with('error', 'Gagal mengajukan edit peminjaman: ' . $e->getMessage());
         }
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Peminjam mengajukan pengembalian sendiri
+    |--------------------------------------------------------------------------
+    | Use case: peminjam sudah selesai memakai alat dan menyerahkan
+    | barangnya ke petugas/admin. Peminjam tidak tahu kondisi barang
+    | maupun denda, jadi yang dia kirim hanya catatan saja; kondisi
+    | dan denda kerusakan diisi petugas/admin saat pemeriksaan.
+    |
+    | Yang TIDAK dilakukan method ini:
+    | - tidak mengubah kondisi unit (stok belum kembali),
+    | - tidak menghitung denda,
+    | - tidak mengubah status peminjaman.
+    | Semuanya baru terjadi saat Admin menyetujui (mirrors
+    | PetugasController::ajukanPengembalian).
+    */
+    public function ajukanPengembalian(Request $request, $id)
+    {
+        // Peminjaman harus milik peminjam sendiri dan masih aktif.
+        // where('user_id') + findOrFail = guard tunggal: user lain
+        // tidak bisa mengajukan pengembalian untuk peminjaman yang
+        // bukan miliknya, walau tahu ID-nya.
+        $peminjaman = Peminjaman::with('pengembalian')
+            ->where('user_id', auth()->id())
+            ->whereIn('status', ['dipinjam', 'telat'])
+            ->findOrFail($id);
+
+        // Catatan peminjam: wajib, tapi pendek. Jika kosong, admin
+        // tidak punya konteks kenapa barang dikembalikan.
+        $validated = $request->validate([
+            'catatan' => 'required|string|min:3|max:500',
+            // Pilih siapa yang memeriksa pengembalian ini.
+            'diproses_oleh' => ['required', 'string', Rule::in(['admin', 'petugas'])],
+        ]);
+
+        $existing = $peminjaman->pengembalian;
+
+        // Pengajuan ganda: petugas sudah input atau peminjam sudah
+        // pernah klik tombol ini.
+        if ($existing && $existing->status_request === 'menunggu') {
+            return redirect()
+                ->route('peminjam.riwayat')
+                ->with('error', 'Pengajuan pengembalian ini masih menunggu persetujuan Admin.');
+        }
+
+        if ($existing && $existing->status_request === 'disetujui') {
+            return redirect()
+                ->route('peminjam.riwayat')
+                ->with('error', 'Pengembalian untuk peminjaman ini sudah disetujui Admin.');
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Pengembalian dan peminjaman relasinya 1:1 (kolom
+            // peminjaman_id unik), jadi pengajuan yang DITOLAK
+            // sebelumnya diperbarui di tempat -- bukan dibuat baru,
+            // yang akan melanggar constraint unik.
+            $data = [
+                'peminjaman_id' => $peminjaman->id,
+                'tgl_kembali' => now()->toDateString(),
+                // Kondisi & denda kerusakan diisi saat pemeriksaan.
+                'kondisi_kembali' => null,
+                'denda' => 0,
+                'denda_kerusakan' => 0,
+                // petugas_id sengaja NULL: ini pengajuan peminjam,
+                // belum ada petugas yang memeriksa.
+                'petugas_id' => null,
+                'status_request' => 'menunggu',
+                'catatan_peminjam' => $validated['catatan'],
+                'diproses_oleh' => $validated['diproses_oleh'],
+            ];
+
+            if ($existing) {
+                $existing->update($data);
+                $pengembalian = $existing->fresh();
+            } else {
+                $pengembalian = Pengembalian::create($data);
+            }
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return redirect()
+                ->route('peminjam.riwayat')
+                ->with('error', 'Gagal mengajukan pengembalian: ' . $e->getMessage());
+        }
+
+        // Notifikasi hanya ke yang dipilih peminjam: tidak perlu
+        // membebani role yang tidak akan memproses pengajuan ini.
+        $tujuan = $validated['diproses_oleh'] === 'petugas'
+            ? ['petugas']
+            : ['admin'];
+
+        User::whereIn('role', $tujuan)
+            ->get()
+            ->each(function ($recipient) use ($pengembalian) {
+                $recipient->notify(
+                    new PengembalianDiajukanPeminjamNotification($pengembalian)
+                );
+            });
+
+        $keAdmin = $validated['diproses_oleh'] === 'admin';
+
+        return redirect()
+            ->route('peminjam.riwayat')
+            ->with(
+                'success',
+                $keAdmin
+                    ? 'Pengajuan pengembalian dikirim ke Admin. Serahkan barang Anda ke petugas untuk diperiksa.'
+                    : 'Pengajuan pengembalian dikirim ke Petugas. Serahkan barang yang dikembalikan ke petugas.'
+            );
     }
 }

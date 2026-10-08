@@ -22,6 +22,11 @@ class Pengembalian extends Model
     'denda_kerusakan',
     'petugas_id',
     'status_request',
+    // Keterangan dari peminjam saat mengajukan sendiri.
+    // Kondisi & denda kerusakan diisi petugas/admin saat diperiksa.
+    'catatan_peminjam',
+    // 'admin' atau 'petugas': pengajuan masuk ke antrean siapa.
+    'diproses_oleh',
 ];
 
     protected function casts(): array

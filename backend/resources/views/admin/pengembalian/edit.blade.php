@@ -311,6 +311,111 @@
 </div>
 
 
+{{-- ================================================= --}}
+{{-- HASIL PEMERIKSAAN (kondisi + denda kerusakan) --}}
+{{-- ================================================= --}}
+@if($pengembalian->status_request === 'menunggu')
+
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-5">
+
+    <div class="p-5 border-b border-gray-200">
+
+        <h3 class="text-sm font-semibold text-gray-800">
+            Hasil Pemeriksaan Barang
+        </h3>
+
+        <p class="text-xs text-gray-500 mt-1">
+            @if($pengembalian->catatan_peminjam)
+                Peminjam menulis: &ldquo;{{ $pengembalian->catatan_peminjam }}&rdquo;
+                <br>
+            @endif
+            Peminjam tidak mengisi kondisi dan denda. Anda yang menentukannya
+            setelah memeriksa barang secara langsung.
+        </p>
+
+    </div>
+
+    <form action="{{ route('admin.pengembalian.update', $pengembalian->id) }}"
+          method="POST"
+          class="p-5 space-y-4">
+
+        @csrf
+        @method('PUT')
+
+        {{-- Kondisi --}}
+        <div>
+            <label for="kondisi_kembali"
+                   class="block text-sm font-semibold text-gray-700 mb-1.5">
+                Kondisi Barang
+                <span class="text-red-500">*</span>
+            </label>
+
+            <select id="kondisi_kembali"
+                    name="kondisi_kembali"
+                    required
+                    class="w-full md:w-64 px-3 py-2.5 border border-gray-300 rounded-lg
+                           focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+
+                <option value="">-- Pilih kondisi --</option>
+
+                <option value="Baik"
+                    @selected(old('kondisi_kembali', $pengembalian->kondisi_kembali) === 'Baik')>
+                    Baik
+                </option>
+
+                <option value="Rusak"
+                    @selected(old('kondisi_kembali', $pengembalian->kondisi_kembali) === 'Rusak')>
+                    Rusak
+                </option>
+
+            </select>
+
+            @error('kondisi_kembali')
+                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+            @enderror
+        </div>
+
+        {{-- Denda kerusakan --}}
+        <div>
+            <label for="denda_kerusakan"
+                   class="block text-sm font-semibold text-gray-700 mb-1.5">
+                Denda Kerusakan (Rp)
+                <span class="text-red-500">*</span>
+            </label>
+
+            <input type="number"
+                   id="denda_kerusakan"
+                   name="denda_kerusakan"
+                   value="{{ old('denda_kerusakan', $pengembalian->denda_kerusakan ?? 0) }}"
+                   min="0"
+                   step="1000"
+                   required
+                   class="w-full md:w-64 px-3 py-2.5 border border-gray-300 rounded-lg
+                          focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+            <p class="text-xs text-gray-500 mt-1">
+                Isi 0 jika barang kembali tanpa kerusakan. Denda keterlambatan
+                dihitung sistem, tidak di sini.
+            </p>
+
+            @error('denda_kerusakan')
+                <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+            @enderror
+        </div>
+
+        <button type="submit"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5
+                       rounded-lg text-sm font-semibold transition">
+            Simpan Hasil Pemeriksaan
+        </button>
+
+    </form>
+
+</div>
+
+@endif
+
+
 {{-- Perhitungan Denda --}}
 <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-5">
 

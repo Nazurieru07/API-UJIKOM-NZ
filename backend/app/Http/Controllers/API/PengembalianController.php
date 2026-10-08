@@ -139,6 +139,16 @@ class PengembalianController extends Controller
                     throw new Exception('Pengajuan pengembalian ini sudah diproses.');
                 }
 
+                // Pengajuan dari peminjam belum punya kondisi sampai
+                // Admin memeriksa. Tanpa guard ini, null akan dibaca
+                // sebagai 'rusak' oleh kondisiUnit() dan semua unit
+                // ikut ditandai rusak.
+                if (empty($pengembalian->kondisi_kembali)) {
+                    throw new Exception(
+                        'Kondisi barang belum diperiksa. Isi hasil pemeriksaan sebelum menyetujui.'
+                    );
+                }
+
                 $peminjaman = $pengembalian->peminjaman;
 
                 if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {

@@ -16,6 +16,7 @@ use App\Notifications\PengembalianSelesaiNotification;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Hash;
 
 class AdminController extends Controller
@@ -743,6 +744,15 @@ public function perbaikiAlat(Request $request, $id)
 
             $peminjaman = $pengembalian->peminjaman;
 
+            // Pengajuan dari peminjam belum punya kondisi sampai Admin
+            // memeriksa. Tanpa ini, NULL dibaca sebagai 'rusak' dan
+            // semua unit tersembunyi dari katalog padahal barang baik.
+            if (empty($pengembalian->kondisi_kembali)) {
+                throw new \Exception(
+                    'Kondisi barang belum diperiksa. Isi hasil pemeriksaan sebelum menyetujui.'
+                );
+            }
+
             if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
                 throw new \Exception(
                     'Peminjaman ini tidak dapat diproses sebagai pengembalian.'
@@ -1046,17 +1056,46 @@ return redirect()
     }
 
     /**
-     * Method lama untuk update pengembalian.
+     * Admin mencatat hasil pemeriksaan barang: kondisi dan denda
+     * kerusakan.
      *
-     * Tidak digunakan dalam alur approval baru.
+     * Wajib untuk pengajuan yang datang dari peminjam: peminjam
+     * tidak tahu kondisi barang, jadi kondisi_kembali masih NULL
+     * sampai diisi di sini. Tanpa langkah ini, setujuiPengembalian
+     * akan membaca NULL dan semua unit otomatis ditandai 'rusak'.
+     *
+     * Denda KETERLAMBATAN tidak diisi di sini -- itu dihitung
+     * sistem dari tanggal rencana vs aktual saat persetujuan.
+     *
+     * Yang TIDAK berubah: kondisi unit dan status peminjaman. Keduanya
+     * baru berubah saat Admin menekan Setujui, supaya tidak ada dua
+     * sumber kebenaran soal kondisi barang.
      */
     public function updatePengembalian(Request $request, $id)
     {
+        $validated = $request->validate([
+            'kondisi_kembali' => ['required', 'string', Rule::in(['Baik', 'Rusak'])],
+            'denda_kerusakan' => ['required', 'integer', 'min:0'],
+        ]);
+
+        $pengembalian = Pengembalian::findOrFail($id);
+
+        if ($pengembalian->status_request !== 'menunggu') {
+            return redirect()
+                ->route('admin.pengembalian.index')
+                ->with('error', 'Pengajuan pengembalian ini sudah diproses.');
+        }
+
+        $pengembalian->update([
+            'kondisi_kembali' => $validated['kondisi_kembali'],
+            'denda_kerusakan' => $validated['denda_kerusakan'],
+        ]);
+
         return redirect()
-            ->route('admin.pengembalian.index')
+            ->route('admin.pengembalian.edit', $pengembalian->id)
             ->with(
-                'error',
-                'Data pengembalian diproses melalui pemeriksaan dan persetujuan Admin.'
+                'success',
+                'Hasil pemeriksaan tersimpan. Periksa kembali lalu setujui pengembalian.'
             );
     }
 

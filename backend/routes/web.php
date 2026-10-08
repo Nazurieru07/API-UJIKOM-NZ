@@ -67,6 +67,12 @@ Route::delete('/pengembalian/{id}', [AdminController::class, 'destroyPengembalia
 Route::get('/pengembalian/{id}/edit', [AdminController::class, 'editPengembalian'])
     ->name('pengembalian.edit');
 
+// Admin mengisi hasil pemeriksaan: kondisi barang dan denda
+// kerusakan. Wajib untuk pengajuan dari peminjam, yang sampai
+// di sini masih NULL karena peminjam tidak tahu kondisinya.
+Route::put('/pengembalian/{id}', [AdminController::class, 'updatePengembalian'])
+    ->name('pengembalian.update');
+
 Route::post('/pengembalian/{id}/setujui', [AdminController::class, 'setujuiPengembalian'])
     ->name('pengembalian.setujui');
 
@@ -153,6 +159,20 @@ Route::middleware(['auth', 'user.aktif', 'role:petugas'])->prefix('petugas')->na
     Route::post('/pengembalian/{id}/ajukan', [PetugasController::class, 'ajukanPengembalian'])
     ->name('pengembalian.ajukan');
 
+    // Peminjam bisa mengalokasikan pengembalian ke petugas saat
+    // mengajukan, jadi petugas punya antrean persetujuan sendiri.
+    Route::get('/pengembalian/{id}/periksa', [PetugasController::class, 'periksaPengembalian'])
+        ->name('pengembalian.periksa');
+
+    Route::put('/pengembalian/{id}/pemeriksaan', [PetugasController::class, 'simpanPemeriksaan'])
+        ->name('pengembalian.pemeriksaan');
+
+    Route::post('/pengembalian/{id}/setujui', [PetugasController::class, 'setujuiPengembalian'])
+        ->name('pengembalian.setujui');
+
+    Route::post('/pengembalian/{id}/tolak', [PetugasController::class, 'tolakPengembalian'])
+        ->name('pengembalian.tolak');
+
 
     Route::get('/laporan', [PetugasController::class, 'indexLaporan'])
         ->name('laporan.index');
@@ -195,6 +215,11 @@ Route::middleware(['auth', 'user.aktif', 'role:peminjam'])->prefix('peminjam')->
 
     Route::post('/peminjaman/{id}/edit', [PeminjamController::class, 'ajukanEditPeminjaman'])
         ->name('edit.ajukan');
+
+    // Peminjam mengajukan pengembalian sendiri. Kondisi barang dan
+    // denda kerusakan diisi petugas/admin saat pemeriksaan.
+    Route::post('/peminjaman/{id}/pengembalian', [PeminjamController::class, 'ajukanPengembalian'])
+        ->name('pengembalian.ajukan');
 
 });
 

@@ -10,6 +10,21 @@
 
 @section('content')
 
+    {{-- Flash pesan dari server: gagal validasi, penolakan, dll. --}}
+    @if(session('error'))
+        <div class="mb-5 px-4 py-3 rounded-xl
+                    bg-red-50 border border-red-200 text-red-800 text-sm">
+            {{ session('error') }}
+        </div>
+    @endif
+
+    @if(session('success'))
+        <div class="mb-5 px-4 py-3 rounded-xl
+                    bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
+            {{ session('success') }}
+        </div>
+    @endif
+
     {{-- ========================================================= --}}
     {{-- HEADER RINGKASAN --}}
     {{-- ========================================================= --}}
@@ -363,6 +378,183 @@
                     </a>
 
                 </div>
+
+            @endif
+
+
+            {{-- ================================================= --}}
+            {{-- PENGEMBALIAN: status + tombol ajukan --}}
+            {{-- ================================================= --}}
+            @if(in_array($peminjaman->status, ['dipinjam', 'telat']))
+
+                <div class="px-5 sm:px-6 pb-5 flex flex-wrap items-center gap-3">
+
+                    @php
+                        $pg = $peminjaman->pengembalian;
+
+                        // Kalau validasi gagal, form harus langsung
+                        // terbuka supaya peminjam melihat isi formnya
+                        // beserta pesan error -- bukan halaman yang
+                        // kembali ke tombol "Ajukan Lagi" tanpa
+                        // penjelasan kenapa gagal.
+                        $formTerbuka = $errors->has('catatan')
+                            || $errors->has('diproses_oleh');
+                    @endphp
+
+                    @if($pg && $pg->status_request === 'menunggu')
+
+                        {{-- Pengajuan sudah dikirim, belum diperiksa --}}
+                        <span class="inline-flex items-center gap-2
+                                     px-3 py-1.5 rounded-full text-xs font-semibold
+                                     bg-amber-50 text-amber-700 border border-amber-200">
+                            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                            Pengembalian Diajukan
+                        </span>
+
+                        <span class="text-xs text-gray-500">
+                            Menunggu pemeriksaan Admin.
+                        </span>
+
+                    @elseif($pg && $pg->status_request === 'ditolak')
+
+                        {{-- Ditolak: peminjam bisa mengajukan lagi --}}
+                        <span class="inline-flex items-center gap-2
+                                     px-3 py-1.5 rounded-full text-xs font-semibold
+                                     bg-red-50 text-red-700 border border-red-200">
+                            <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                            Pengembalian Ditolak
+                        </span>
+
+                        {{--
+                            Tombol ini hanya membuka form di bawah, bukan submit.
+                            Submit langsung tanpa catatan & pilihan diproses_oleh
+                            akan gagal validasi dan redirect kemari lagi --
+                            kelihatan seperti loop dari sisi peminjam.
+                        --}}
+                        <button type="button"
+                                onclick="document.getElementById('form-pengembalian-{{ $peminjaman->id }}').classList.toggle('hidden')"
+                                class="inline-flex items-center gap-2
+                                       px-4 py-2 rounded-xl text-sm font-semibold
+                                       bg-red-600 text-white
+                                       hover:bg-red-700 transition">
+                            Ajukan Lagi
+                        </button>
+
+                    @elseif($pg && $pg->status_request === 'disetujui')
+
+                        <span class="inline-flex items-center gap-2
+                                     px-3 py-1.5 rounded-full text-xs font-semibold
+                                     bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            Pengembalian Disetujui
+                        </span>
+
+                    @else
+
+                        {{-- Belum pernah diajukan: tampilkan tombol --}}
+                        <button type="button"
+                                onclick="document.getElementById('form-pengembalian-{{ $peminjaman->id }}').classList.toggle('hidden')"
+                                class="inline-flex items-center gap-2
+                                       px-4 py-2.5 rounded-xl text-sm font-semibold
+                                       bg-emerald-600 text-white
+                                       hover:bg-emerald-700 transition">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                      d="M3 10h18M3 10a2 2 0 01.701-1.526l7-5.5a2 2 0 012.598 0l7 5.5A2 2 0 0121 10v8a2 2 0 01-2 2H5a2 2 0 01-2-2v-8z" />
+                            </svg>
+                            Kembalikan Alat
+                        </button>
+
+                    @endif
+
+                </div>
+
+                {{-- Form pengembalian (default tersembunyi) --}}
+                @if(!$pg || $pg->status_request !== 'menunggu')
+
+                    <div id="form-pengembalian-{{ $peminjaman->id }}"
+                         class="{{ $formTerbuka ? '' : 'hidden' }} px-5 sm:px-6 pb-5">
+
+                        <form action="{{ route('peminjam.pengembalian.ajukan', $peminjaman->id) }}"
+                              method="POST"
+                              class="space-y-3 p-4 rounded-xl
+                                     border border-emerald-200
+                                     bg-emerald-50/50">
+
+                            @csrf
+
+                            {{-- Pilih siapa yang memproses --}}
+                            <div>
+                                <label for="diproses_oleh-{{ $peminjaman->id }}"
+                                       class="block text-sm font-semibold text-gray-800 mb-1.5">
+                                    Diproses Oleh
+                                    <span class="text-red-500">*</span>
+                                </label>
+
+                                <select
+                                    id="diproses_oleh-{{ $peminjaman->id }}"
+                                    name="diproses_oleh"
+                                    required
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg
+                                           focus:outline-none focus:ring-2 focus:ring-emerald-500
+                                           text-sm bg-white">
+                                    <option value="admin">Admin</option>
+                                    <option value="petugas">Petugas</option>
+                                </select>
+
+                                @error('diproses_oleh')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+
+                                <p class="mt-1.5 text-xs text-gray-500">
+                                    Pengajuan ini masuk ke antrean yang Anda pilih,
+                                    dan masuk ke laporan milik orang yang menyetujuinya.
+                                </p>
+                            </div>
+
+                            <div>
+                                <label for="catatan-{{ $peminjaman->id }}"
+                                       class="block text-sm font-semibold text-gray-800 mb-1.5">
+                                    Catatan Pengembalian
+                                    <span class="text-red-500">*</span>
+                                </label>
+
+                                <textarea
+                                    id="catatan-{{ $peminjaman->id }}"
+                                    name="catatan"
+                                    rows="3"
+                                    required
+                                    minlength="3"
+                                    maxlength="500"
+                                    placeholder="Mis. sudah saya titip di pos satpam / saya bawa langsung ke kantor"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg
+                                           focus:outline-none focus:ring-2 focus:ring-emerald-500
+                                           text-sm resize-none"
+                                >{{ old('catatan') }}</textarea>
+
+                                @error('catatan')
+                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                                @enderror
+
+                                <p class="mt-1.5 text-xs text-gray-500">
+                                    Kondisi barang dan denda kerusakan akan diperiksa
+                                    oleh petugas/admin. Pastikan barang sudah diserahkan.
+                                </p>
+                            </div>
+
+                            <button type="submit"
+                                    class="inline-flex items-center gap-2
+                                           px-4 py-2.5 rounded-xl text-sm font-semibold
+                                           bg-emerald-600 text-white
+                                           hover:bg-emerald-700 transition">
+                                Kirim Pengajuan Pengembalian
+                            </button>
+
+                        </form>
+
+                    </div>
+
+                @endif
 
             @endif
 
