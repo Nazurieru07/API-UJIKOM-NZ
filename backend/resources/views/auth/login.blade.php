@@ -7,8 +7,17 @@
 
     <!-- Memuat Tailwind CSS melalui CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+
+    {{-- Tema: script anti-FOUC harus jalan sebelum render.
+         Login belum login, jadi sumber temanya localStorage. --}}
+    @include('partials.theme')
 </head>
 <body class="motion-page bg-gray-100 flex items-center justify-center min-h-screen px-4">
+
+    {{-- Tombol toggle tema: posisi absolute kanan atas --}}
+    <div class="fixed top-4 right-4 z-50">
+        @include('partials.theme-toggle')
+    </div>
 
     <!-- Card Container -->
     <div class="motion-login-card bg-white p-8 rounded-lg shadow-md w-full max-w-sm">

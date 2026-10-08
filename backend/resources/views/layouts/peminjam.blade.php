@@ -7,6 +7,9 @@
 
     <title>@yield('title', 'Peminjam - Sistem Peminjaman Alat')</title>
 
+    {{-- Tema: script anti-FOUC harus jalan sebelum render. --}}
+    @include('partials.theme')
+
     {{-- Tailwind CSS --}}
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -96,6 +99,9 @@
 
                 {{-- USER --}}
 <div class="flex items-center gap-4">
+
+    {{-- TOGGLE TEMA --}}
+    @include('partials.theme-toggle')
 
     {{-- NOTIFIKASI --}}
     <details class="relative">

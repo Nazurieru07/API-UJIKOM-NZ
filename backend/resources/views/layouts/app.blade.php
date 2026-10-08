@@ -7,8 +7,12 @@
 
     <title>@yield('title', 'Dashboard Admin')</title>
 
-    <!-- Memuat Tailwind CSS CDN -->
+    {{-- Memuat Tailwind CSS CDN --}}
     <script src="https://cdn.tailwindcss.com"></script>
+
+    {{-- Tema: partial ini harus ada di <head> supaya script
+         anti-FOUC jalan sebelum halaman dirender. --}}
+    @include('partials.theme')
     <style>
     @keyframes flashSuccess {
         0% {
@@ -256,6 +260,9 @@
                 </div>
 
                 <div class="flex items-center gap-4">
+
+    {{-- Toggle Tema --}}
+    @include('partials.theme-toggle')
 
     {{-- Notification --}}
 <details class="relative">
