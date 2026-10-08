@@ -24,7 +24,20 @@ class UpdateUserRequest extends FormRequest
             'role'          => ['required', Rule::in(['admin', 'petugas', 'peminjam'])],
             'no_hp'         => ['nullable', 'string', 'max:15'],
             'alamat'        => ['nullable', 'string'],
+
+            // Konsisten dengan StoreUserRequest dan dengan versi web.
+            // nullable: boleh tidak dikirim; tapi kalau dikirim harus salah
+            // satu dari dua nilai ini.
+            'jenis_kelamin' => ['nullable', 'string', Rule::in(['Laki-laki', 'Perempuan'])],
+
             'foto_profile'  => ['nullable', 'image', 'mimes:jpeg,png,jpg'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'jenis_kelamin.in' => 'Jenis kelamin harus Laki-laki atau Perempuan.',
         ];
     }
 }

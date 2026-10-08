@@ -22,9 +22,9 @@ class PeminjamanResource extends JsonResource
 
             // Satu item = satu unit serial. Nama alat didapat lewat
             // relasi unit->alat, jadi controller WAJIB eager-load
-            // 'detailPinjam.alatUnit.alat' (lihat audit note).
-            'item_dipinjam' => $this->whenLoaded('detailPinjam', function () {
-                return $this->detailPinjam->map(function ($detail) {
+            // 'detailPinjams.alatUnit.alat'.
+            'item_dipinjam' => $this->whenLoaded('detailPinjams', function () {
+                return $this->detailPinjams->map(function ($detail) {
                     $unit = $detail->alatUnit;
 
                     return [

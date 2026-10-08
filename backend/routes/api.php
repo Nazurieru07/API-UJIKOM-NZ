@@ -25,15 +25,17 @@ Route::middleware(['auth:sanctum', 'user.aktif'])->group(function () {
     Route::post('/peminjaman/{peminjaman}/approve', [PeminjamanController::class, 'approve']);
     Route::post('/peminjaman', [PeminjamanController::class, 'store']);
     Route::get('/riwayat-pinjam', [PeminjamanController::class, 'riwayat']);
+
+    // Pengembalian butuh persetujuan admin, jadi terbagi dua langkah:
+    // petugas mengajukan di sini, admin memprosesnya di route approve
+    // di bawah. Alur ini sama dengan versi web: tanpa persetujuan,
+    // unit tidak kembali ke katalog dan denda tidak dihitung.
     Route::post('/pengembalian', [PengembalianController::class, 'store']);
 });
-
-    // Laporan dapat diakses Admin dan Petugas
-Route::middleware('role:admin,petugas')->group(function () {
+    Route::middleware('role:admin,petugas')->group(function () {
     Route::get('/laporan-peminjaman', [LaporanController::class, 'index']);
-});
-Route::middleware('role:admin,petugas')->group(function () {
     Route::get('/peminjaman', [PeminjamanController::class, 'index']);
+    Route::get('/pengembalian', [PengembalianController::class, 'index']);
 });
 
     // Hanya Admin
@@ -44,10 +46,15 @@ Route::middleware('role:admin,petugas')->group(function () {
         Route::apiResource('users', UserController::class);
         Route::get('/peminjaman/{peminjaman}', [PeminjamanController::class, 'show']);        Route::put('/peminjaman/{peminjaman}', [PeminjamanController::class, 'update']);
         Route::delete('/peminjaman/{peminjaman}', [PeminjamanController::class, 'destroy']);
-        Route::get('/pengembalian', [PengembalianController::class, 'index']);
         Route::get('/pengembalian/{pengembalian}', [PengembalianController::class, 'show']);
         Route::put('/pengembalian/{pengembalian}', [PengembalianController::class, 'update']);
         Route::delete('/pengembalian/{pengembalian}', [PengembalianController::class, 'destroy']);
+
+        // Persetujuan / penolakan pengembalian adalah hak Admin, seperti
+        // menu admin/pengembalian di web.
+        Route::post('/pengembalian/{pengembalian}/approve', [PengembalianController::class, 'approve']);
+        Route::post('/pengembalian/{pengembalian}/reject', [PengembalianController::class, 'reject']);
+
         Route::get('/log-aktivitas', [LogAktivitasController::class, 'index']);
     });
 

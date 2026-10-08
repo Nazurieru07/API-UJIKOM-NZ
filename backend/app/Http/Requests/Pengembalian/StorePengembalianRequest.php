@@ -20,8 +20,25 @@ class StorePengembalianRequest extends FormRequest
                 'integer',
                 Rule::exists('peminjaman', 'id')
             ],
-            'kondisi_kembali' => ['required', 'string', 'max:255'],
-            'denda' => ['nullable', 'integer', 'min:0'],
+
+            // Sama seperti web (PetugasController::ajukanPengembalian):
+            // hanya dua nilai sah. Sebelumnya kolom ini bebas teks apa
+            // pun, padahal AdminController::setujuiPengembalian memetakan
+            // selain 'Baik' jadi 'rusak' -- nilai aneh bikin data unit
+            // tidak akurat.
+            'kondisi_kembali' => ['required', 'string', Rule::in(['Baik', 'Rusak'])],
+
+            // Denda kerusakan diisi petugas; denda keterlambatan dihitung
+            // sistem saat admin menyetujui, jadi tidak ada di sini.
+            'denda_kerusakan' => ['required', 'integer', 'min:0'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'kondisi_kembali.in' => 'Kondisi kembali harus Baik atau Rusak.',
+            'denda_kerusakan.min' => 'Denda kerusakan tidak boleh negatif.',
         ];
     }
 
@@ -30,7 +47,7 @@ class StorePengembalianRequest extends FormRequest
         return [
             'peminjaman_id' => 'ID Peminjaman',
             'kondisi_kembali' => 'Kondisi barang kembali',
-            'denda' => 'Nilai denda',
+            'denda_kerusakan' => 'Denda kerusakan',
         ];
     }
 }

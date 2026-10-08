@@ -22,7 +22,20 @@ class StoreUserRequest extends FormRequest
             'role'          => ['required', Rule::in(['admin', 'petugas', 'peminjam'])],
             'no_hp'         => ['nullable', 'string', 'max:15'],
             'alamat'        => ['nullable', 'string'],
+
+            // Sama seperti web (AdminController::storeUser) dan profil
+            // mandiri (UpdateProfileRequest): hanya dua nilai sah, selain
+            // itu ditolak.
+            'jenis_kelamin' => ['nullable', 'string', Rule::in(['Laki-laki', 'Perempuan'])],
+
             'foto_profile'  => ['nullable', 'image', 'mimes:jpeg,png,jpg', 'max:2048'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'jenis_kelamin.in' => 'Jenis kelamin harus Laki-laki atau Perempuan.',
         ];
     }
 }
