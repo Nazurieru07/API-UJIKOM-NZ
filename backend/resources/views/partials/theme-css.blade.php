@@ -119,6 +119,34 @@
     html[data-tema="dark"] .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.4) !important; }
     html[data-tema="dark"] .shadow-md { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5) !important; }
     html[data-tema="dark"] .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5) !important; }
+
+    /*
+     | Alpha utility (bg-white/90 dll).
+     | Override biasa hanya menangani shade penuh; yang pakai slash
+     | opacity lolos dan tetap putih/abu di dark mode. Inilah sisa
+     | warna terang yang masih terlihat di katalog & riwayat.
+    */
+    html[data-tema="dark"] .bg-white\/20   { background-color: rgba(148,163,184,0.20) !important; }
+    html[data-tema="dark"] .bg-white\/70   { background-color: rgba(15,23,42,0.70)  !important; }
+    html[data-tema="dark"] .bg-white\/80   { background-color: rgba(15,23,42,0.80)  !important; }
+    html[data-tema="dark"] .bg-white\/90   { background-color: rgba(30,41,59,0.92)  !important; }
+    html[data-tema="dark"] .bg-white\/95   { background-color: rgba(15,23,42,0.95)  !important; }
+    html[data-tema="dark"] .bg-gray-50\/70 { background-color: rgba(15,23,42,0.70)  !important; }
+    html[data-tema="dark"] .bg-black\/30   { background-color: rgba(0,0,0,0.30)     !important; }
+    html[data-tema="dark"] .bg-black\/50   { background-color: rgba(0,0,0,0.50)     !important; }
+    html[data-tema="dark"] .border-white\/30 { border-color: rgba(148,163,184,0.35) !important; }
+
+    /*
+     | Tombol disabled (mis. "Lanjutkan Pengajuan" sebelum unit
+     | dipilih). Shade penuh sudah di-override, tapi variant
+     | disabled punya selector sendiri, jadi harus terpisah.
+    */
+    html[data-tema="dark"] .disabled\:bg-gray-200:disabled   { background-color: #334155 !important; }
+    html[data-tema="dark"] .disabled\:bg-gray-300:disabled   { background-color: #475569 !important; }
+    html[data-tema="dark"] .disabled\:bg-gray-100:disabled   { background-color: #1e293b !important; }
+    html[data-tema="dark"] .disabled\:text-gray-400:disabled { color: #64748b !important; }
+    html[data-tema="dark"] .disabled\:text-gray-500:disabled { color: #64748b !important; }
+    html[data-tema="dark"] .disabled\:border-gray-300:disabled { border-color: #475569 !important; }
 </style>
 
 {{--

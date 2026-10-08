@@ -23,9 +23,24 @@ class PengembalianSelesaiNotification extends Notification implements ShouldQueu
 
     public function toArray(object $notifiable): array
     {
+        // Siapa yang menyetujui: pengembalian bisa diproses admin
+        // atau petugas. Tanpa ini pesan selalu bilang "Admin" meski
+        // yang sebenarnya menyetujui adalah petugas.
+        $approver = $this->pengembalian->petugas;
+        $namaApprover = $approver
+            ? trim(explode(' ', $approver->name)[0])
+            : 'Admin';
+
+        $pesan = $approver
+            ? 'Pengembalian alat yang kamu pinjam telah disetujui oleh Petugas '
+                . $namaApprover
+                . '. Peminjaman kamu sekarang berstatus dikembalikan.'
+            : 'Pengembalian alat yang kamu pinjam telah disetujui oleh Admin. '
+                . 'Peminjaman kamu sekarang berstatus dikembalikan.';
+
         return [
             'judul' => 'Pengembalian Disetujui',
-            'pesan' => 'Pengembalian alat yang kamu pinjam telah disetujui oleh Admin. Peminjaman kamu sekarang berstatus dikembalikan.',
+            'pesan' => $pesan,
             'pengembalian_id' => $this->pengembalian->id,
         ];
     }
