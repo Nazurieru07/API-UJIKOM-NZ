@@ -216,6 +216,45 @@
                         {{-- Aksi --}}
 <td class="px-4 py-4 text-center">
 
+    @php
+        // Dua jalur berbeda:
+        // - pengajuan sudah ada dan dialokasikan ke petugas
+        //   (peminjam yang mengajukan sendiri) -> petugas MEMERIKSA
+        //   lalu menyetujui, tanpa mengisi ulang kondisi di sini.
+        // - belum ada pengajuan -> petugas yang MengAJUKAN dengan
+        //   mengisi kondisi + denda (form lama).
+        $sudahDiajukan = $peminjaman->pengembalian
+            && $peminjaman->pengembalian->status_request === 'menunggu';
+
+        $dariPeminjam = $sudahDiajukan
+            && $peminjaman->pengembalian->diproses_oleh === 'petugas';
+    @endphp
+
+    @if($dariPeminjam)
+
+        <div class="flex flex-col gap-2 items-center">
+
+            <span class="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-xs font-medium">
+                Dari Peminjam
+            </span>
+
+            @if($peminjaman->pengembalian->catatan_peminjam)
+                <p class="text-xs text-gray-500 max-w-[220px] italic">
+                    &ldquo;{{ $peminjaman->pengembalian->catatan_peminjam }}&rdquo;
+                </p>
+            @endif
+
+            <a
+                href="{{ route('petugas.pengembalian.periksa', $peminjaman->pengembalian->id) }}"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold transition"
+            >
+                Periksa
+            </a>
+
+        </div>
+
+    @else
+
     <form
         action="{{ route('petugas.pengembalian.ajukan', $peminjaman->id) }}"
         method="POST"
@@ -270,6 +309,8 @@
         </div>
 
     </form>
+
+    @endif
 
 </td>
 

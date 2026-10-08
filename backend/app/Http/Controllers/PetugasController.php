@@ -17,6 +17,8 @@ use App\Models\DetailPermintaanEdit;
 use App\Models\DetailPinjam;
 use App\Notifications\PermintaanEditDiprosesNotification;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use App\Notifications\PengembalianSelesaiNotification;
 
 class PetugasController extends Controller
 {
@@ -266,10 +268,18 @@ return redirect()
             'pengembalian'
         ])
             ->whereIn('status', ['dipinjam', 'telat'])
+            // Tiga sumber pengembalian di antrean petugas: belum diajukan,
+            // sebelumnya ditolak (ajukan ulang), atau pengajuan peminjam
+            // yang dialokasikan ke petugas. Tanpa ketiga-ketiganya,
+            // pengajuan peminjam tidak pernah diproses.
             ->where(function ($query) {
                 $query->whereDoesntHave('pengembalian')
                     ->orWhereHas('pengembalian', function ($q) {
                         $q->where('status_request', 'ditolak');
+                    })
+                    ->orWhereHas('pengembalian', function ($q) {
+                        $q->where('status_request', 'menunggu')
+                            ->where('diproses_oleh', 'petugas');
                     });
             })
             ->when($search, function ($query, $search) {
@@ -747,5 +757,233 @@ return redirect()
         $permintaanEdit->user->notify(new PermintaanEditDiprosesNotification($permintaanEdit));
 
         return redirect()->route('petugas.edit-peminjaman.index')->with('success', 'Permintaan edit ditolak.');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pemeriksaan & persetujuan pengembalian oleh Petugas
+    |--------------------------------------------------------------------------
+    | Peminjam memilih "Diproses Oleh: Petugas" saat mengajukan
+    | pengembalian, jadi antrean ini milik petugas -- sama seperti
+    | pengembalian yang diajukan petugas sendiri lewat menu lama.
+    |
+    | Petugas mencatat hasil pemeriksaan (kondisi + denda kerusakan),
+    | lalu menyetujui. Efeknya sama dengan AdminController::setujui-
+    | Pengembalian: unit kembali sesuai kondisi, status peminjaman
+    | jadi 'dikembalikan'. Bedanya petugas_id diisi petugas yang
+    | menyetujui, sehingga pengembalian ini masuk ke LAPORAN PETUGAS
+    | itu (menu petugas/laporan), bukan laporan admin saja.
+    */
+
+    /**
+     * Halaman pemeriksaan satu pengembalian.
+     */
+    public function periksaPengembalian($id)
+    {
+        $pengembalian = Pengembalian::with([
+            'peminjaman.user',
+            'peminjaman.detailPinjams.alatUnit.alat',
+            'petugas',
+        ])->findOrFail($id);
+
+        // Hanya pengajuan yang menunggu yang bisa diperiksa, dan hanya
+        // kalau memang dialokasikan ke petugas.
+        if ($pengembalian->status_request !== 'menunggu') {
+            return redirect()
+                ->route('petugas.pengembalian.index')
+                ->with('error', 'Pengajuan pengembalian ini sudah diproses.');
+        }
+
+        return view(
+            'petugas.pengembalian.periksa',
+            compact('pengembalian')
+        );
+    }
+
+    /**
+     * Menyimpan hasil pemeriksaan: kondisi barang + denda kerusakan.
+     *
+     * Terpisah dari persetujuan supaya petugas bisa menutupi data
+     * lalu mengecek ulang sebelum menekan Setujui.
+     */
+    public function simpanPemeriksaan(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'kondisi_kembali' => ['required', 'string', Rule::in(['Baik', 'Rusak'])],
+            'denda_kerusakan' => ['required', 'integer', 'min:0'],
+        ]);
+
+        $pengembalian = Pengembalian::findOrFail($id);
+
+        if ($pengembalian->status_request !== 'menunggu') {
+            return redirect()
+                ->route('petugas.pengembalian.index')
+                ->with('error', 'Pengajuan pengembalian ini sudah diproses.');
+        }
+
+        $pengembalian->update([
+            'kondisi_kembali' => $validated['kondisi_kembali'],
+            'denda_kerusakan' => $validated['denda_kerusakan'],
+        ]);
+
+        return redirect()
+            ->route('petugas.pengembalian.periksa', $pengembalian->id)
+            ->with('success', 'Hasil pemeriksaan tersimpan. Periksa kembali lalu setujui.');
+    }
+
+    /**
+     * Petugas menyetujui pengembalian.
+     *
+     * Dikunci dengan konsekuensi yang sama seperti approve Admin:
+     * unit balik ke katalog (atau ditandai rusak), status peminjaman
+     * 'dikembalikan', denda keterlambatan dihitung sistem. Yang
+     * membedakan: petugas_id diisi petugas ini, jadi pengembalian
+     * masuk ke laporan petugas yang sama.
+     */
+    public function setujuiPengembalian($id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $pengembalian = Pengembalian::with([
+                'peminjaman.user',
+                'peminjaman.detailPinjams.alatUnit',
+            ])->lockForUpdate()->findOrFail($id);
+
+            if ($pengembalian->status_request !== 'menunggu') {
+                throw new \Exception('Pengajuan pengembalian ini sudah diproses.');
+            }
+
+            // Peminjam tidak mengisi kondisi; tanpa guard ini null
+            // akan terbaca 'rusak' dan semua unit ikut ditandai rusak.
+            if (empty($pengembalian->kondisi_kembali)) {
+                throw new \Exception(
+                    'Kondisi barang belum diperiksa. Isi hasil pemeriksaan sebelum menyetujui.'
+                );
+            }
+
+            $peminjaman = $pengembalian->peminjaman;
+
+            if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
+                throw new \Exception(
+                    'Peminjaman ini tidak dapat diproses sebagai pengembalian.'
+                );
+            }
+
+            // Bandingkan per tanggal, bukan per detik: tgl_kembali
+            // bisa punya jam (diisi default now()), sedangkan hari ini
+            // mulai jam 00:00 -- tanpa startOfDay, pengembalian hari
+            // ini yang sah selalu terbaca "di masa depan".
+            $tglRencana = \Carbon\Carbon::parse($peminjaman->tgl_kembali_plan)->startOfDay();
+            $tglKembali = \Carbon\Carbon::parse($pengembalian->tgl_kembali)->startOfDay();
+
+            if ($tglKembali->greaterThan(\Carbon\Carbon::today())) {
+                throw new \Exception('Tanggal pengembalian tidak boleh melebihi hari ini.');
+            }
+
+            $hariTerlambat = $tglKembali->greaterThan($tglRencana)
+                ? $tglRencana->diffInDays($tglKembali)
+                : 0;
+
+            $dendaKeterlambatan = $hariTerlambat * config('denda.keterlambatan_per_hari');
+
+            $pengembalian->update([
+                'denda' => $dendaKeterlambatan,
+                'status_request' => 'disetujui',
+                // Penentu laporan: pengembalian ini masuk ke laporan
+                // petugas ini, bukan laporan admin saja.
+                'petugas_id' => auth()->id(),
+            ]);
+
+            // 'Baik' -> kembali ke katalog, selain itu ->rusak dan
+            // disembunyikan sampai diperbaiki dari menu Kelola Unit.
+            $kondisiUnit = strcasecmp($pengembalian->kondisi_kembali, 'Baik') === 0
+                ? 'tersedia'
+                : 'rusak';
+
+            foreach ($peminjaman->detailPinjams as $detail) {
+                $unit = $detail->alatUnit;
+
+                if (!$unit) {
+                    continue;
+                }
+
+                // Update per instance supaya observer mencatat audit.
+                $unit->update(['kondisi' => $kondisiUnit]);
+            }
+
+            $peminjaman->update(['status' => 'dikembalikan']);
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return back()->with('error', 'Gagal menyetujui: ' . $e->getMessage());
+        }
+
+        auth()->user()->logAktivitas()->create([
+            'aktivitas' => 'Menyetujui pengembalian peminjaman #'
+                . $pengembalian->peminjaman_id
+                . ' untuk peminjam '
+                . ($pengembalian->peminjaman->user?->name ?? '-')
+                . ', denda keterlambatan Rp'
+                . number_format($dendaKeterlambatan, 0, ',', '.')
+                . '.',
+        ]);
+
+        if ($pengembalian->peminjaman->user) {
+            $pengembalian->peminjaman->user->notify(
+                new PengembalianSelesaiNotification($pengembalian)
+            );
+        }
+
+        return redirect()
+            ->route('petugas.pengembalian.index')
+            ->with(
+                'success',
+                'Pengembalian disetujui. Unit sudah kembali dan pengembalian ini masuk ke laporan Anda.'
+            );
+    }
+
+    /**
+     * Petugas menolak pengembalian. Unit dan status peminjaman tidak
+     * disentuh -- memang belum ada yang berubah.
+     */
+    public function tolakPengembalian($id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $pengembalian = Pengembalian::with('peminjaman.user')
+                ->lockForUpdate()
+                ->findOrFail($id);
+
+            if ($pengembalian->status_request !== 'menunggu') {
+                throw new \Exception('Pengajuan pengembalian ini sudah diproses.');
+            }
+
+            $pengembalian->update([
+                'status_request' => 'ditolak',
+                'denda' => 0,
+            ]);
+
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return back()->with('error', 'Gagal menolak: ' . $e->getMessage());
+        }
+
+        auth()->user()->logAktivitas()->create([
+            'aktivitas' => 'Menolak pengajuan pengembalian peminjaman #'
+                . $pengembalian->peminjaman_id
+                . ' dari peminjam '
+                . ($pengembalian->peminjaman->user?->name ?? '-')
+                . '.',
+        ]);
+
+        return redirect()
+            ->route('petugas.pengembalian.index')
+            ->with('success', 'Pengajuan pengembalian ditolak. Peminjam bisa mengajukan ulang.');
     }
 }
