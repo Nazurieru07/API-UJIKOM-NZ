@@ -120,3 +120,22 @@
     html[data-tema="dark"] .shadow-md { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5) !important; }
     html[data-tema="dark"] .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5) !important; }
 </style>
+
+{{--
+    Highlight unit yang DIPILIH di katalog peminjam.
+
+    Sebelumnya memakai has-[:checked]:bg-blue-50 (sintaks Tailwind v4)
+    yang di-compile CDN v3 tapi selector-nya cocok untuk semua label
+    walau checkbox tidak di-checked -- jadi semua unit kelihatan
+    terpilih di dark mode. Diganti pseudo-class CSS biasa.
+--}}
+<style>
+    .checked-unit:has(input:checked) {
+        border-color: rgb(96, 165, 250);  /* blue-400 */
+        background-color: rgb(239, 246, 255); /* blue-50 */
+    }
+    html[data-tema="dark"] .checked-unit:has(input:checked) {
+        border-color: rgb(96, 165, 250);  /* blue-400 */
+        background-color: rgba(59, 130, 246, 0.15);
+    }
+</style>

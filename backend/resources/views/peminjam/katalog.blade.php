@@ -287,18 +287,17 @@
                                 @forelse($unitTampil as $unit)
 
                                     <label
-                                        class="flex items-center gap-2 px-2.5 py-2
+                                        class="unit-label flex items-center gap-2 px-2.5 py-2
                                                border border-gray-200 rounded-xl
                                                hover:bg-gray-50 cursor-pointer
-                                               transition has-[:checked]:border-blue-400
-                                               has-[:checked]:bg-blue-50"
+                                               transition checked-unit"
                                     >
 
                                         <input
                                             type="checkbox"
                                             name="alat_unit_id[]"
                                             value="{{ $unit->id }}"
-                                            class="unit-checkbox sr-only"
+                                            class="unit-checkbox peer sr-only"
                                             data-alat-id="{{ $alat->id }}"
                                             data-nama="{{ $alat->nama_alat }}"
                                             data-serial="{{ $unit->serial_number }}"
@@ -1878,16 +1877,15 @@ document.querySelectorAll('.btn-detail-alat')
             .then(function (data) {
                 (data.units || []).forEach(function (unit) {
                     var label = document.createElement('label');
-                    label.className = 'flex items-center gap-2 px-2.5 py-2 '
+                    label.className = 'unit-label flex items-center gap-2 px-2.5 py-2 '
                         + 'border border-gray-200 rounded-xl '
-                        + 'hover:bg-gray-50 cursor-pointer transition '
-                        + 'has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50';
+                        + 'hover:bg-gray-50 cursor-pointer transition checked-unit';
 
                     var input = document.createElement('input');
                     input.type = 'checkbox';
                     input.name = 'alat_unit_id[]';
                     input.value = unit.id;
-                    input.className = 'unit-checkbox sr-only';
+                    input.className = 'unit-checkbox peer sr-only';
                     input.setAttribute('data-alat-id', alatId);
                     input.setAttribute('data-nama', data.nama_alat || '');
                     input.setAttribute('data-serial', unit.serial_number);
