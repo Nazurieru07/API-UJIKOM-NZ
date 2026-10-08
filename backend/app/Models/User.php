@@ -44,6 +44,7 @@ class User extends Authenticatable
     'alamat',
     'foto_profile',
     'jenis_kelamin',
+    'tema',
 ];
 
     protected $hidden = [

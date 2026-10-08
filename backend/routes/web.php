@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\PetugasController;
 use App\Http\Controllers\PeminjamController;
@@ -232,3 +234,17 @@ Route::post('/notifications/read-all', function () {
         'success' => true
     ]);
 })->name('notifications.readAll')->middleware(['auth', 'user.aktif']);
+
+// Simpan preferensi tema (light/dark) ke kolom users.tema.
+// Dipanggil fetch dari partials/theme.blade.php. Dipisah dari
+// profile.update karena toggle ada di setiap halaman, dan validasi
+// cuma 1 field enum -- tidak butuh Form Request terpisah.
+Route::post('/tema', function (Request $request) {
+    $request->validate([
+        'tema' => ['required', 'string', Rule::in(['light', 'dark'])],
+    ]);
+
+    $request->user()->update(['tema' => $request->tema]);
+
+    return response()->json(['success' => true]);
+})->name('tema.simpan')->middleware(['auth', 'user.aktif']);
