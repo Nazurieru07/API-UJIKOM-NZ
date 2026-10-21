@@ -1,0 +1,618 @@
+<?php $__env->startSection('title', 'Periksa Pengembalian - Panel Admin'); ?>
+<?php $__env->startSection('header-title', 'Periksa Pengembalian'); ?>
+
+<?php $__env->startSection('content'); ?>
+
+<div class="max-w-5xl mx-auto">
+    
+
+<?php if(session('error')): ?>
+    <div class="mb-4 bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg text-sm">
+        <?php echo e(session('error')); ?>
+
+    </div>
+<?php endif; ?>
+
+
+
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-5">
+
+    <div class="p-5 border-b border-gray-200">
+
+        <h2 class="text-lg font-semibold text-gray-800">
+            Periksa Pengajuan Pengembalian
+        </h2>
+
+        <p class="text-sm text-gray-500 mt-1">
+            Periksa hasil pemeriksaan Petugas sebelum menyetujui pengembalian alat.
+        </p>
+
+    </div>
+
+
+    
+    <div class="p-5">
+
+        <h3 class="text-sm font-semibold text-gray-800 mb-4">
+            Informasi Peminjaman
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">
+                    Nama Peminjam
+                </label>
+
+                <div class="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-800">
+                    <?php echo e($pengembalian->peminjaman->user->name); ?>
+
+                </div>
+            </div>
+
+
+            
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">
+                    Petugas Pemeriksa
+                </label>
+
+                <div class="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-800">
+                    <?php echo e($pengembalian->petugas?->name ?? 'Admin'); ?>
+
+                </div>
+            </div>
+
+
+            
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">
+                    Tanggal Peminjaman
+                </label>
+
+                <div class="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-800">
+                    <?php echo e($pengembalian->peminjaman->tgl_pinjam->format('d-m-Y')); ?>
+
+                </div>
+            </div>
+
+
+            
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">
+                    Batas Pengembalian
+                </label>
+
+                <div class="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-800">
+                    <?php echo e($pengembalian->peminjaman->tgl_kembali_plan->format('d-m-Y')); ?>
+
+                </div>
+            </div>
+
+
+            
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">
+                    Tanggal Pengembalian
+                </label>
+
+                <div class="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-800">
+                    <?php echo e($pengembalian->tgl_kembali->format('d-m-Y')); ?>
+
+                </div>
+            </div>
+
+
+            
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">
+                    Status Peminjaman
+                </label>
+
+                <div class="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm text-gray-800">
+                    <?php if($pengembalian->peminjaman->status == 'telat'): ?>
+                        <span class="text-red-600 font-semibold">
+                            Terlambat
+                        </span>
+                    <?php else: ?>
+                        <span class="text-blue-600 font-semibold">
+                            Dipinjam
+                        </span>
+                    <?php endif; ?>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-5">
+
+    <div class="p-5 border-b border-gray-200">
+
+        <h3 class="text-sm font-semibold text-gray-800">
+            Alat yang Dikembalikan
+        </h3>
+
+    </div>
+
+
+    <div class="p-5">
+
+        <div class="overflow-x-auto">
+
+            <table class="w-full text-sm text-left">
+
+                <thead class="bg-gray-100 text-gray-700 uppercase text-xs">
+
+                    <tr>
+
+                        <th class="px-4 py-3">
+                            No
+                        </th>
+
+                        <th class="px-4 py-3">
+                            Nama Alat
+                        </th>
+
+                        <th class="px-4 py-3">
+                            Jumlah
+                        </th>
+
+                        <th class="px-4 py-3">
+                            Kondisi
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody class="divide-y divide-gray-200">
+
+                    <?php $__currentLoopData = $pengembalian->peminjaman->detailPinjams; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $detail): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+
+                        <tr>
+
+                            <td class="px-4 py-3 text-gray-600">
+                                <?php echo e($loop->iteration); ?>
+
+                            </td>
+
+                            <td class="px-4 py-3 font-medium text-gray-800">
+                                <?php echo e($detail->alatUnit->alat->nama_alat); ?>
+
+                            </td>
+
+                            <td class="px-4 py-3 text-gray-600">
+                                <?php echo e($detail->alatUnit?->serial_number ?? '-'); ?>
+
+                            </td>
+
+                            <td class="px-4 py-3">
+
+                                <?php if($pengembalian->kondisi_kembali == 'Baik'): ?>
+
+                                    <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
+                                        Baik
+                                    </span>
+
+                                <?php elseif($pengembalian->kondisi_kembali === 'Rusak'): ?>
+
+                                    <span class="bg-red-100 text-red-800 px-3 py-1 rounded-full text-xs font-medium">
+                                        Rusak
+                                    </span>
+
+                                <?php else: ?>
+
+                                    <span class="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-xs font-medium">
+                                        <?php echo e($pengembalian->kondisi_kembali); ?>
+
+                                    </span>
+
+                                <?php endif; ?>
+
+                            </td>
+
+                        </tr>
+
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-5">
+
+    <div class="p-5 border-b border-gray-200">
+
+        <h3 class="text-sm font-semibold text-gray-800">
+            Hasil Pemeriksaan Petugas
+        </h3>
+
+        <p class="text-xs text-gray-500 mt-1">
+            Data berikut berasal dari pemeriksaan Petugas di lapangan.
+        </p>
+
+    </div>
+
+
+    <div class="p-5">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            
+            <div>
+
+                <label class="block text-xs font-medium text-gray-500 mb-1">
+                    Kondisi Alat
+                </label>
+
+                <div class="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm">
+
+                    <?php if($pengembalian->kondisi_kembali == 'Baik'): ?>
+
+                        <span class="text-green-700 font-semibold">
+                            Baik
+                        </span>
+
+                    <?php elseif($pengembalian->kondisi_kembali === 'Rusak'): ?>
+
+                        <span class="text-red-700 font-semibold">
+                            Rusak
+                        </span>
+
+                    <?php else: ?>
+
+                        <span class="text-gray-700 font-semibold">
+                            <?php echo e($pengembalian->kondisi_kembali); ?>
+
+                        </span>
+
+                    <?php endif; ?>
+
+                </div>
+
+            </div>
+
+
+            
+            <div>
+
+                <label class="block text-xs font-medium text-gray-500 mb-1">
+                    Denda Kerusakan
+                </label>
+
+                <div class="border border-gray-200 bg-gray-50 rounded-lg px-3 py-2 text-sm font-semibold text-red-600">
+                    Rp <?php echo e(number_format($pengembalian->denda_kerusakan ?? 0, 0, ',', '.')); ?>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+
+            <p class="text-sm text-blue-800">
+                <span class="font-semibold">Catatan:</span>
+                Denda kerusakan ditentukan oleh Petugas berdasarkan hasil pemeriksaan alat.
+                Admin hanya melakukan validasi dan persetujuan terhadap pengajuan pengembalian.
+            </p>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+<?php if($pengembalian->status_request === 'menunggu'): ?>
+
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-5">
+
+    <div class="p-5 border-b border-gray-200">
+
+        <h3 class="text-sm font-semibold text-gray-800">
+            Hasil Pemeriksaan Barang
+        </h3>
+
+        <p class="text-xs text-gray-500 mt-1">
+            <?php if($pengembalian->catatan_peminjam): ?>
+                Peminjam menulis: &ldquo;<?php echo e($pengembalian->catatan_peminjam); ?>&rdquo;
+                <br>
+            <?php endif; ?>
+            Peminjam tidak mengisi kondisi dan denda. Anda yang menentukannya
+            setelah memeriksa barang secara langsung.
+        </p>
+
+    </div>
+
+    <form action="<?php echo e(route('admin.pengembalian.update', $pengembalian->id)); ?>"
+          method="POST"
+          class="p-5 space-y-4">
+
+        <?php echo csrf_field(); ?>
+        <?php echo method_field('PUT'); ?>
+
+        
+        <div>
+            <label for="kondisi_kembali"
+                   class="block text-sm font-semibold text-gray-700 mb-1.5">
+                Kondisi Barang
+                <span class="text-red-500">*</span>
+            </label>
+
+            <select id="kondisi_kembali"
+                    name="kondisi_kembali"
+                    required
+                    class="w-full md:w-64 px-3 py-2.5 border border-gray-300 rounded-lg
+                           focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+
+                <option value="">-- Pilih kondisi --</option>
+
+                <option value="Baik"
+                    <?php if(old('kondisi_kembali', $pengembalian->kondisi_kembali) === 'Baik'): echo 'selected'; endif; ?>>
+                    Baik
+                </option>
+
+                <option value="Rusak"
+                    <?php if(old('kondisi_kembali', $pengembalian->kondisi_kembali) === 'Rusak'): echo 'selected'; endif; ?>>
+                    Rusak
+                </option>
+
+            </select>
+
+            <?php $__errorArgs = ['kondisi_kembali'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                <p class="mt-1 text-xs text-red-600"><?php echo e($message); ?></p>
+            <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+        </div>
+
+        
+        <div>
+            <label for="denda_kerusakan"
+                   class="block text-sm font-semibold text-gray-700 mb-1.5">
+                Denda Kerusakan (Rp)
+                <span class="text-red-500">*</span>
+            </label>
+
+            <input type="number"
+                   id="denda_kerusakan"
+                   name="denda_kerusakan"
+                   value="<?php echo e(old('denda_kerusakan', $pengembalian->denda_kerusakan ?? 0)); ?>"
+                   min="0"
+                   step="1000"
+                   required
+                   class="w-full md:w-64 px-3 py-2.5 border border-gray-300 rounded-lg
+                          focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+            <p class="text-xs text-gray-500 mt-1">
+                Isi 0 jika barang kembali tanpa kerusakan. Denda keterlambatan
+                dihitung sistem, tidak di sini.
+            </p>
+
+            <?php $__errorArgs = ['denda_kerusakan'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?>
+                <p class="mt-1 text-xs text-red-600"><?php echo e($message); ?></p>
+            <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?>
+        </div>
+
+        <button type="submit"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5
+                       rounded-lg text-sm font-semibold transition">
+            Simpan Hasil Pemeriksaan
+        </button>
+
+    </form>
+
+</div>
+
+<?php endif; ?>
+
+
+
+<div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-5">
+
+    <div class="p-5 border-b border-gray-200">
+
+        <h3 class="text-sm font-semibold text-gray-800">
+            Perhitungan Denda
+        </h3>
+
+    </div>
+
+
+    <div class="p-5">
+
+        <?php
+            $tglKembaliPlan = \Carbon\Carbon::parse($pengembalian->peminjaman->tgl_kembali_plan);
+            $tglKembali = \Carbon\Carbon::parse($pengembalian->tgl_kembali);
+
+            $hariTerlambat = max(
+                0,
+                $tglKembaliPlan->diffInDays($tglKembali, false)
+            );
+
+           $dendaKeterlambatan = $hariTerlambat * config('denda.keterlambatan_per_hari');
+
+            $dendaKerusakan = $pengembalian->denda_kerusakan ?? 0;
+
+            $totalDenda = $dendaKeterlambatan + $dendaKerusakan;
+        ?>
+
+
+        <div class="space-y-3">
+
+            
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+
+                <div>
+
+                    <p class="text-sm font-medium text-gray-700">
+                        Denda Keterlambatan
+                    </p>
+
+                    <p class="text-xs text-gray-500 mt-1">
+                    <?php echo e($hariTerlambat); ?> hari ×
+                    Rp <?php echo e(number_format(config('denda.keterlambatan_per_hari'), 0, ',', '.')); ?>
+
+                </p>
+
+                </div>
+
+                <span class="text-sm font-semibold text-red-600">
+                    Rp <?php echo e(number_format($dendaKeterlambatan, 0, ',', '.')); ?>
+
+                </span>
+
+            </div>
+
+
+            
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+
+                <div>
+
+                    <p class="text-sm font-medium text-gray-700">
+                        Denda Kerusakan
+                    </p>
+
+                    <p class="text-xs text-gray-500 mt-1">
+                        Berdasarkan hasil pemeriksaan Petugas
+                    </p>
+
+                </div>
+
+                <span class="text-sm font-semibold text-red-600">
+                    Rp <?php echo e(number_format($dendaKerusakan, 0, ',', '.')); ?>
+
+                </span>
+
+            </div>
+
+
+            
+            <div class="flex items-center justify-between bg-red-50 border border-red-200 rounded-lg p-4 mt-4">
+
+                <div>
+
+                    <p class="text-sm font-semibold text-red-800">
+                        Total Denda
+                    </p>
+
+                    <p class="text-xs text-red-600 mt-1">
+                        Denda keterlambatan + denda kerusakan
+                    </p>
+
+                </div>
+
+                <span class="text-xl font-bold text-red-700">
+                    Rp <?php echo e(number_format($totalDenda, 0, ',', '.')); ?>
+
+                </span>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<div class="bg-white rounded-lg shadow-sm border border-gray-200">
+
+    <div class="p-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+
+        
+        <a
+            href="<?php echo e(route('admin.pengembalian.index')); ?>"
+            class="w-full sm:w-auto text-center bg-gray-200 hover:bg-gray-300 text-gray-800 px-5 py-2.5 rounded-lg text-sm font-semibold transition"
+        >
+            Kembali
+        </a>
+
+
+        <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+
+            
+            <form
+                action="<?php echo e(route('admin.pengembalian.reject', $pengembalian->id)); ?>"
+                method="POST"
+                onsubmit="return confirm('Apakah kamu yakin ingin menolak pengajuan pengembalian ini?')"
+                class="w-full sm:w-auto"
+            >
+
+                <?php echo csrf_field(); ?>
+
+                <button
+                    type="submit"
+                    class="w-full bg-red-500 hover:bg-red-600 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition"
+                >
+                    Tolak Pengajuan
+                </button>
+
+            </form>
+
+
+            
+            <form
+                action="<?php echo e(route('admin.pengembalian.setujui', $pengembalian->id)); ?>"
+                method="POST"
+                onsubmit="return confirm('Apakah kamu yakin ingin menyetujui pengembalian ini?')"
+                class="w-full sm:w-auto"
+            >
+
+                <?php echo csrf_field(); ?>
+
+                <button
+                    type="submit"
+                    class="w-full bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold transition"
+                >
+                    Setujui Pengembalian
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+</div>
+
+<?php $__env->stopSection(); ?>
+
+<?php echo $__env->make('layouts.app', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?><?php /**PATH /var/www/resources/views/admin/pengembalian/edit.blade.php ENDPATH**/ ?>

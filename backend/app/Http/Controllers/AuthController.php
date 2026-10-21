@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use App\Models\User;
 
 class AuthController extends Controller
 {
@@ -14,6 +15,46 @@ class AuthController extends Controller
     {
         return view('auth.login');
     }
+
+    
+    // Menampilkan Form Registrasi Peminjam
+    public function showRegistrationForm()
+    {
+        return view('auth.register');
+    }
+
+    // Memproses Registrasi Peminjam
+    public function register(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                'unique:users,email',
+            ],
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+                'confirmed',
+            ],
+        ]);
+
+        User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => $validated['password'],
+            'role' => 'peminjam',
+            'is_aktif' => true,
+        ]);
+
+        return redirect()
+            ->route('login')
+            ->with('success', 'Registrasi berhasil. Silakan login.');
+    }
+
 
     // Memproses Login
     public function login(Request $request)

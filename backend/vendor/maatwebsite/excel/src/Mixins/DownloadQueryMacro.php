@@ -1,0 +1,61 @@
+<?php
+
+namespace Maatwebsite\Excel\Mixins;
+
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Maatwebsite\Excel\Concerns\Exportable;
+use Maatwebsite\Excel\Concerns\FromQuery;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Sheet;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+
+class DownloadQueryMacro
+{
+    public function __invoke(): callable
+    {
+        return function (string $fileName, ?string $writerType = null, $withHeadings = false): BinaryFileResponse {
+            $export = new class($this, $withHeadings) implements FromQuery, WithHeadings // @phpstan-ignore argument.type
+            {
+                use Exportable;
+
+                /**
+                 * @param  Builder<Model>  $query
+                 */
+                public function __construct(
+                    private readonly Builder $query,
+                    private readonly bool $withHeadings = false,
+                ) {
+                }
+
+                /**
+                 * @return Builder<Model>
+                 */
+                public function query(): Builder
+                {
+                    return $this->query;
+                }
+
+                /**
+                 * @return array<int, mixed>
+                 */
+                public function headings(): array
+                {
+                    if (!$this->withHeadings) {
+                        return [];
+                    }
+
+                    $firstRow = (clone $this->query)->first();
+
+                    if ($firstRow) {
+                        return array_keys(Sheet::mapArraybleRow($firstRow));
+                    }
+
+                    return [];
+                }
+            };
+
+            return $export->download($fileName, $writerType);
+        };
+    }
+}

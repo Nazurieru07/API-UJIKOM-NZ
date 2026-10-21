@@ -25,6 +25,15 @@
             Login Sistem
         </h3>
 
+        
+        <!-- Alert Registrasi Berhasil -->
+        @if(session('success'))
+            <div class="mb-4 p-3 bg-green-100 border border-green-400 text-green-700 rounded text-sm">
+                {{ session('success') }}
+            </div>
+        @endif
+
+
         <!-- Alert Error Session -->
         @if(session('error'))
             <div class="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
@@ -81,6 +90,15 @@
                 Masuk
             </button>
         </form>
+        
+        <!-- Link Registrasi -->
+        <p class="text-sm text-center text-gray-600 mt-6">
+            Belum punya akun?
+            <a href="{{ route('register') }}" class="text-blue-600 hover:text-blue-700 font-semibold">
+                Daftar sebagai Peminjam
+            </a>
+        </p>
+
     </div>
 
     @include('partials.motion')

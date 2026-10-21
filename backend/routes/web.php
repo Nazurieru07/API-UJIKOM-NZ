@@ -225,7 +225,7 @@ Route::middleware(['auth', 'user.aktif', 'role:peminjam'])->prefix('peminjam')->
 
 /*
 |==========================================================================
-| ROUTE PROFIL SAYANG
+| ROUTE PROFIL
 |==========================================================================
 | Setiap user (admin, petugas, peminjam) mengelola data dan foto
 | profilnya sendiri. Perubahan menulis ke record `users` yang sama, jadi
@@ -243,6 +243,13 @@ Route::middleware('guest')->group(function () {
         ->name('login');
 
     Route::post('/login', [AuthController::class, 'login']);
+
+    // Route Registrasi Peminjam
+        Route::get('/register', [AuthController::class, 'showRegistrationForm'])
+            ->name('register');
+
+        Route::post('/register', [AuthController::class, 'register']);
+
 });
 
 // Route Logout (Harus sudah login)
