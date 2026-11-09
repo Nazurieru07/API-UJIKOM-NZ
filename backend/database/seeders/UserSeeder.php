@@ -16,6 +16,9 @@ class UserSeeder extends Seeder
                 'email' => 'admin@gmail.com',
                 'password' => Hash::make('password123'),
                 'role' => 'admin',
+                'is_aktif' => true,
+                'jenis_kelamin' => 'Laki-laki',
+                'tema' => 'light',
                 'no_hp' => '081234567890',
                 'alamat' => 'Bandung, West Java',
             ],
@@ -24,6 +27,9 @@ class UserSeeder extends Seeder
                 'email' => 'petugas@gmail.com',
                 'password' => Hash::make('password123'),
                 'role' => 'petugas',
+                'is_aktif' => true,
+                'jenis_kelamin' => 'Laki-laki',
+                'tema' => 'light',
                 'no_hp' => '082345678901',
                 'alamat' => 'Baleendah, Bandung',
             ],
@@ -32,6 +38,9 @@ class UserSeeder extends Seeder
                 'email' => 'rian@gmail.com',
                 'password' => Hash::make('password123'),
                 'role' => 'peminjam',
+                'is_aktif' => true,
+                'jenis_kelamin' => 'Laki-laki',
+                'tema' => 'light',
                 'no_hp' => '083456789012',
                 'alamat' => 'Ciparay, Bandung',
             ],
@@ -40,6 +49,9 @@ class UserSeeder extends Seeder
                 'email' => 'siti@gmail.com',
                 'password' => Hash::make('password123'),
                 'role' => 'peminjam',
+                'is_aktif' => true,
+                'jenis_kelamin' => 'Perempuan',
+                'tema' => 'light',
                 'no_hp' => '084567890123',
                 'alamat' => 'Dayeuhkolot, Bandung',
             ],
@@ -48,13 +60,19 @@ class UserSeeder extends Seeder
                 'email' => 'eka@gmail.com',
                 'password' => Hash::make('password123'),
                 'role' => 'peminjam',
+                'is_aktif' => true,
+                'jenis_kelamin' => 'Laki-laki',
+                'tema' => 'light',
                 'no_hp' => '085678901234',
                 'alamat' => 'Banjaran, Bandung',
             ],
         ];
 
         foreach ($users as $user) {
-            User::create($user);
+            User::updateOrCreate(
+                ['email' => $user['email']],
+                $user
+            );
         }
     }
 }

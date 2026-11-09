@@ -12,9 +12,11 @@ class DatabaseSeeder extends Seeder
             UserSeeder::class,
             KategoriSeeder::class,
             AlatSeeder::class,
+            AlatUnitSeeder::class,
             PeminjamanSeeder::class,
             DetailPinjamSeeder::class,
             PengembalianSeeder::class,
+            DetailPengembalianSeeder::class,
             LogAktivitasSeeder::class,
         ]);
     }
