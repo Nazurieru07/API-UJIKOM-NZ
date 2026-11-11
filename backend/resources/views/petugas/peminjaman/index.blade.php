@@ -255,6 +255,8 @@
 
         </div>
 
+   @elseif(in_array($item->status, ['dipinjam', 'telat']))
+        <span class="text-gray-400 text-sm">-</span>
    @else
     <span class="text-gray-400 text-sm">-</span>
 @endif
@@ -348,6 +350,8 @@
 
         </div>
     </div>
+
+
 
 
 <script>

@@ -15,19 +15,20 @@ class Pengembalian extends Model
     protected $table = 'pengembalian';
 
     protected $fillable = [
-    'peminjaman_id',
-    'tgl_kembali',
-    'kondisi_kembali',
-    'denda',
-    'denda_kerusakan',
-    'petugas_id',
-    'status_request',
-    // Keterangan dari peminjam saat mengajukan sendiri.
-    // Kondisi & denda kerusakan diisi petugas/admin saat diperiksa.
-    'catatan_peminjam',
-    // 'admin' atau 'petugas': pengajuan masuk ke antrean siapa.
-    'diproses_oleh',
-];
+        'peminjaman_id',
+        'tgl_kembali',
+        'kondisi_kembali',
+        'denda',
+        'denda_kerusakan',
+        'petugas_id',
+        'status_request',
+        // Keterangan dari peminjam saat mengajukan sendiri.
+        // Kondisi & denda kerusakan diisi petugas/admin saat diperiksa.
+        'catatan_peminjam',
+        // Flag untuk pengembalian parsial
+        'is_parsial',
+        'jumlah_unit_dikembalikan',
+    ];
 
     protected function casts(): array
     {
@@ -35,6 +36,8 @@ class Pengembalian extends Model
             'tgl_kembali' => 'date:Y-m-d',
             'denda' => 'integer',
             'denda_kerusakan' => 'integer',
+            'is_parsial' => 'boolean',
+            'jumlah_unit_dikembalikan' => 'integer',
         ];
     }
 
@@ -49,5 +52,42 @@ class Pengembalian extends Model
     public function petugas(): BelongsTo
     {
         return $this->belongsTo(User::class, 'petugas_id');
+    }
+    
+    /**
+     * Relasi ke detail pengembalian (untuk pengembalian parsial)
+     */
+    public function detailPengembalians()
+    {
+        return $this->hasMany(DetailPengembalian::class);
+    }
+    
+    /**
+     * Cek apakah pengembalian ini parsial
+     */
+    public function isParsial()
+    {
+        return $this->is_parsial;
+    }
+    
+    /**
+     * Cek apakah semua unit sudah dikembalikan
+     */
+    public function isLengkap()
+    {
+        if (!$this->is_parsial) {
+            return true;
+        }
+        
+        $totalUnit = $this->peminjaman->detailPinjams()->count();
+        return $this->jumlah_unit_dikembalikan >= $totalUnit;
+    }
+    
+    /**
+     * Tambah unit yang dikembalikan
+     */
+    public function tambahUnitDikembalikan($jumlah = 1)
+    {
+        $this->increment('jumlah_unit_dikembalikan', $jumlah);
     }
 }

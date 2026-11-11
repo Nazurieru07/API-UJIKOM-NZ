@@ -705,157 +705,460 @@ public function perbaikiAlat(Request $request, $id)
     }
 
 
+    
     /**
-     * Menyetujui pengajuan pengembalian.
+     * Admin memproses dan menyetujui pengembalian alat.
      *
-     * Petugas menentukan:
-     * - kondisi alat
-     * - denda kerusakan
-     *
-     * Admin menentukan validasi akhir.
-     *
-     * Denda keterlambatan dihitung otomatis
-     * sebesar Rp1.000 per hari.
+     * Setiap unit dicatat beserta identitas Admin yang memeriksanya.
      */
     public function setujuiPengembalian($id)
     {
-        /*
-        | Titik final alur pengembalian. Di sini:
-        | 1. denda keterlambatan dihitung (butuh tanggal kembali aktual),
-        | 2. status_request -> disetujui,
-        | 3. stok alat dikembalikan sesuai kondisi (baik/rusak/rusak parah),
-        | 4. status peminjaman -> dikembalikan.
-        | Semua dalam transaksi: gagal salah satu -> semua rollback.
-        */
-        DB::beginTransaction();
-
         try {
-           $pengembalian = Pengembalian::with([
-            'petugas',
-            'peminjaman.user',
-            'peminjaman.detailPinjams.alatUnit.alat'
-        ])->findOrFail($id);
+            $hasil = DB::transaction(function () use ($id) {
 
-            if ($pengembalian->status_request !== 'menunggu') {
-                throw new \Exception(
-                    'Pengajuan pengembalian ini sudah diproses.'
-                );
-            }
+                // Ambil data awal untuk mengetahui ID peminjaman.
+                $dataAwal = Pengembalian::findOrFail($id);
 
-            $peminjaman = $pengembalian->peminjaman;
+                // Kunci peminjaman terlebih dahulu agar urutan penguncian
+                // konsisten dengan proses pengembalian Petugas.
+                $peminjaman = Peminjaman::whereKey(
+                    $dataAwal->peminjaman_id
+                )->lockForUpdate()->firstOrFail();
 
-            // Pengajuan dari peminjam belum punya kondisi sampai Admin
-            // memeriksa. Tanpa ini, NULL dibaca sebagai 'rusak' dan
-            // semua unit tersembunyi dari katalog padahal barang baik.
-            if (empty($pengembalian->kondisi_kembali)) {
-                throw new \Exception(
-                    'Kondisi barang belum diperiksa. Isi hasil pemeriksaan sebelum menyetujui.'
-                );
-            }
+                // Kunci data pengembalian.
+                $pengembalian = Pengembalian::whereKey($id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
-            if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
-                throw new \Exception(
-                    'Peminjaman ini tidak dapat diproses sebagai pengembalian.'
-                );
-            }
+                $peminjaman->load([
+                    'user',
+                    'detailPinjams.alatUnit.alat',
+                ]);
 
-            $tglRencana = Carbon::parse($peminjaman->tgl_kembali_plan);
-            $tglKembali = Carbon::parse($pengembalian->tgl_kembali);
-
-            if ($tglKembali->greaterThan(Carbon::today())) {
-                throw new \Exception(
-                    'Tanggal pengembalian tidak boleh melebihi hari ini.'
-                );
-            }
-
-            $hariTerlambat = 0;
-
-            if ($tglKembali->greaterThan($tglRencana)) {
-                $hariTerlambat = $tglRencana->diffInDays($tglKembali);
-            }
-
-            // Tarif denda ada di config/denda.php, bukan hardcode.
-            // Ubah tarif di config, semua perhitungan ikut.
-                $dendaKeterlambatan =
-                $hariTerlambat * config('denda.keterlambatan_per_hari');
-
-            // Denda kerusakan sudah ditentukan oleh Petugas.
-            $dendaKerusakan = (int) ($pengembalian->denda_kerusakan ?? 0);
-
-            // Simpan masing-masing denda ke kolomnya sendiri.
-            $pengembalian->update([
-                'denda' => $dendaKeterlambatan,
-                'status_request' => 'disetujui',
-            ]);
-
-            /*
-            | Unit kembali setelah Admin menyetujui pengembalian.
-            |
-            | Sebelum serial number, ini menaikkan kolom stok agregat per
-            | tingkat kerusakan. Sekarang tiap unit punya kondisinya sendiri,
-            | jadi yang di-update hanya alat_unit.kondisi:
-            | - kondisi_kembali 'Baik' -> unit 'tersedia' (katalog tampilkan)
-            | - kondisi_kembali 'Rusak' -> unit 'rusak' (tersembunyi dari
-            |   katalog sampai admin menandai perbaikan di menu Kelola Unit)
-            |
-            | Kondisi kembali hanya dua nilai: 'Baik' dan 'Rusak'. Nilai
-            | tingkat yang dulu ada sudah dinormalisasi jadi 'Rusak' oleh
-            | migrasi 2026_09_30_144000, jadi tidak perlu menangani
-            | nilai lama di sini.
-            |
-            | Update per instance (bukan mass update) supaya
-            | AlatUnitObserver mencatat jejak audit tiap transisi.
-            */
-            $kondisiUnit = strcasecmp($pengembalian->kondisi_kembali, 'Baik') === 0
-                ? 'tersedia'
-                : 'rusak';
-
-            foreach ($peminjaman->detailPinjams as $detail) {
-                $unit = $detail->alatUnit;
-
-                if (!$unit) {
-                    continue;
+                if ($pengembalian->status_request !== 'menunggu') {
+                    throw new \Exception(
+                        'Pengajuan pengembalian ini sudah diproses.'
+                    );
                 }
 
-                $unit->update(['kondisi' => $kondisiUnit]);
+                if (empty($pengembalian->kondisi_kembali)) {
+                    throw new \Exception(
+                        'Kondisi barang belum diperiksa. Isi hasil pemeriksaan sebelum menyetujui.'
+                    );
+                }
+
+                if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
+                    throw new \Exception(
+                        'Peminjaman ini tidak dapat diproses sebagai pengembalian.'
+                    );
+                }
+
+                // Tanggal pengembalian tidak boleh melewati hari ini.
+                $tglKembali = Carbon::parse($pengembalian->tgl_kembali);
+
+                if ($tglKembali->greaterThan(Carbon::today())) {
+                    throw new \Exception(
+                        'Tanggal pengembalian tidak boleh melebihi hari ini.'
+                    );
+                }
+
+                // Ambil detail unit yang sebelumnya sudah dikembalikan.
+                $detailSudahKembali = \App\Models\DetailPengembalian::where(
+                    'pengembalian_id',
+                    $pengembalian->id
+                )->pluck('detail_pinjam_id')->all();
+
+                // Cari unit yang masih belum dikembalikan.
+                $detailBelumKembali = $peminjaman->detailPinjams
+                    ->whereNotIn('id', $detailSudahKembali);
+
+                if ($detailBelumKembali->isEmpty()) {
+                    throw new \Exception(
+                        'Semua unit pada peminjaman ini sudah dikembalikan.'
+                    );
+                }
+
+                $kondisi = $pengembalian->kondisi_kembali;
+
+                $kondisiUnit = strcasecmp($kondisi, 'Baik') === 0
+                    ? 'tersedia'
+                    : 'rusak';
+
+                // Catat setiap unit yang diproses oleh Admin.
+                foreach ($detailBelumKembali as $detail) {
+
+                    $unit = $detail->alatUnit;
+
+                    if (!$unit) {
+                        throw new \Exception(
+                            'Data unit alat tidak ditemukan.'
+                        );
+                    }
+
+                    \App\Models\DetailPengembalian::create([
+                        'pengembalian_id' => $pengembalian->id,
+                        'detail_pinjam_id' => $detail->id,
+                        'diproses_oleh_id' => auth()->id(),
+                        'kondisi_kembali' => $kondisi,
+                        // Denda kerusakan tetap disimpan sebagai total
+                        // pada tabel pengembalian, tidak digandakan.
+                        'denda_kerusakan' => 0,
+                    ]);
+
+                    // Perbarui kondisi unit setelah pemeriksaan.
+                    $unit->update([
+                        'kondisi' => $kondisiUnit,
+                    ]);
+                }
+
+                // Hitung jumlah unit yang sudah dikembalikan.
+                $jumlahSudahKembali = \App\Models\DetailPengembalian::where(
+                    'pengembalian_id',
+                    $pengembalian->id
+                )->count();
+
+                $totalUnit = $peminjaman->detailPinjams->count();
+
+                if ($jumlahSudahKembali !== $totalUnit) {
+                    throw new \Exception(
+                        'Jumlah unit yang dikembalikan belum sesuai.'
+                    );
+                }
+
+                // Hitung denda keterlambatan.
+                $tglRencana = Carbon::parse(
+                    $peminjaman->tgl_kembali_plan
+                )->startOfDay();
+
+                $tglKembali->startOfDay();
+
+                $hariTerlambat = $tglKembali->greaterThan($tglRencana)
+                    ? (int) $tglRencana->diffInDays($tglKembali)
+                    : 0;
+
+                $dendaKeterlambatan = $hariTerlambat
+                    * config('denda.keterlambatan_per_hari', 3000);
+
+                // Simpan hasil pemeriksaan dan persetujuan Admin.
+                $pengembalian->update([
+                    'denda' => $dendaKeterlambatan,
+                    'petugas_id' => null,
+                    'jumlah_unit_dikembalikan' => $jumlahSudahKembali,
+                    'status_request' => 'disetujui',
+                ]);
+
+                // Peminjaman selesai setelah semua unit dikembalikan.
+                $peminjaman->update([
+                    'status' => 'dikembalikan',
+                ]);
+
+                return [
+                    'peminjaman' => $peminjaman,
+                    'pengembalian' => $pengembalian,
+                ];
+            });
+
+            // Notifikasi dikirim setelah transaksi berhasil.
+            if ($hasil['peminjaman']->user) {
+                $hasil['peminjaman']->user->notify(
+                    new PengembalianSelesaiNotification(
+                        $hasil['pengembalian']->load('petugas')
+                    )
+                );
             }
-
-            $peminjaman->update([
-                'status' => 'dikembalikan',
-            ]);
-
-            DB::commit();
-
-            // petugas_id NULL = admin menangani sendiri, tidak ada
-            // petugas yang perlu dinotifikasi -> dilewati.
-if ($pengembalian->petugas) {
-    $pengembalian->petugas->notify(
-        new PengembalianDisetujuiNotification($pengembalian)
-    );
-}
-
-// Kirim notifikasi kepada Peminjam
-if ($pengembalian->peminjaman->user) {
-    $pengembalian->peminjaman->user->notify(
-        new PengembalianSelesaiNotification($pengembalian)
-    );
-}
 
             return redirect()
                 ->route('admin.pengembalian.index')
                 ->with(
                     'success',
-                    'Pengembalian berhasil disetujui, stok alat dikembalikan, dan total denda telah dihitung.'
+                    'Pengembalian berhasil disetujui. Seluruh unit telah dicatat dan denda telah dihitung.'
                 );
-        } catch (\Exception $e) {
-            DB::rollBack();
 
+        } catch (\Throwable $e) {
             return back()->with(
                 'error',
                 'Pengembalian gagal disetujui: ' . $e->getMessage()
             );
         }
     }
+
+/**
+ * Menampilkan form pengembalian parsial untuk Admin.
+ *
+ * Admin dapat memproses unit yang belum dikembalikan,
+ * termasuk ketika ada pengajuan peminjam yang masih menunggu.
+ */
+public function formPengembalianParsialAdmin($peminjamanId)
+{
+    $peminjaman = Peminjaman::with([
+        'user',
+        'detailPinjams.alatUnit.alat',
+        'pengembalian.detailPengembalians',
+    ])->findOrFail($peminjamanId);
+
+    // Pengembalian parsial hanya untuk peminjaman yang masih aktif.
+    if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
+        return redirect()
+            ->route('admin.peminjaman.index')
+            ->with('error', 'Peminjaman ini tidak dapat diproses sebagai pengembalian parsial.');
+    }
+
+    // Cari unit yang belum tercatat dalam detail pengembalian.
+    $detailSudahKembali = $peminjaman->pengembalian
+        ? $peminjaman->pengembalian->detailPengembalians
+            ->pluck('detail_pinjam_id')
+            ->all()
+        : [];
+
+    $unitBelumKembali = $peminjaman->detailPinjams
+        ->filter(function ($detail) use ($detailSudahKembali) {
+            return !in_array($detail->id, $detailSudahKembali);
+        });
+
+    if ($unitBelumKembali->isEmpty()) {
+        return redirect()
+            ->route('admin.peminjaman.index')
+            ->with('error', 'Semua unit dalam peminjaman ini sudah dikembalikan.');
+    }
+
+    // Sengaja tidak menolak status_request "menunggu".
+    // Admin dapat langsung memeriksa dan memproses pengajuan tersebut.
+    return view('admin.pengembalian.parsial', compact('peminjaman'));
+}
+
+
+/**
+ * Memproses pengembalian parsial secara langsung oleh Admin.
+ *
+ * Setiap unit diperiksa secara terpisah. ID Admin dicatat
+ * sebagai pemroses sebenarnya pada setiap detail pengembalian.
+ */
+public function prosesPengembalianParsialAdmin(Request $request, $peminjamanId)
+{
+    // Validasi unit yang dipilih.
+    $detailPinjamIds = $request->input('detail_pinjam_id', []);
+
+    $rules = [
+        'detail_pinjam_id' => 'required|array|min:1',
+        'detail_pinjam_id.*' => 'required|integer|distinct|exists:detail_pinjam,id',
+        'kondisi_kembali' => 'required|array',
+        'denda_kerusakan' => 'required|array',
+    ];
+
+    // Setiap unit wajib memiliki kondisi dan nominal denda.
+    foreach (is_array($detailPinjamIds) ? $detailPinjamIds : [] as $id) {
+        if (filter_var($id, FILTER_VALIDATE_INT) !== false) {
+            $rules["kondisi_kembali.$id"] = 'required|in:Baik,Rusak';
+            $rules["denda_kerusakan.$id"] = 'required|integer|min:0';
+        }
+    }
+
+    $request->validate($rules);
+
+    try {
+        $hasil = DB::transaction(function () use ($request, $peminjamanId, $detailPinjamIds) {
+
+            // Kunci peminjaman agar Admin dan Petugas tidak
+            // memproses peminjaman yang sama secara bersamaan.
+            $peminjaman = Peminjaman::whereKey($peminjamanId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $peminjaman->load([
+                'user',
+                'detailPinjams.alatUnit',
+            ]);
+
+            if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
+                throw new \Exception(
+                    'Peminjaman ini sudah tidak aktif atau sudah selesai.'
+                );
+            }
+
+            // Kunci data pengembalian jika sudah pernah dibuat.
+            $pengembalian = Pengembalian::where(
+                'peminjaman_id',
+                $peminjaman->id
+            )->lockForUpdate()->first();
+
+            // Buat data induk jika belum tersedia.
+            if (!$pengembalian) {
+                $pengembalian = Pengembalian::create([
+                    'peminjaman_id' => $peminjaman->id,
+                    'tgl_kembali' => now()->toDateString(),
+                    'kondisi_kembali' => null,
+                    'denda' => 0,
+                    'denda_kerusakan' => 0,
+                    'petugas_id' => null,
+                    'status_request' => 'disetujui',
+                    'is_parsial' => true,
+                    'jumlah_unit_dikembalikan' => 0,
+                ]);
+            }
+
+            // Pemetaan detail unit yang benar-benar dimiliki peminjaman.
+            $detailById = $peminjaman->detailPinjams->keyBy('id');
+
+            foreach ($detailPinjamIds as $id) {
+                $detail = $detailById->get($id);
+
+                if (!$detail) {
+                    throw new \Exception(
+                        "Unit dengan detail peminjaman #{$id} bukan milik peminjaman ini."
+                    );
+                }
+
+                // Pastikan unit belum pernah dikembalikan.
+                $sudahKembali = \App\Models\DetailPengembalian::where(
+                    'detail_pinjam_id',
+                    $id
+                )->exists();
+
+                if ($sudahKembali) {
+                    throw new \Exception(
+                        "Unit dengan detail peminjaman #{$id} sudah pernah dikembalikan."
+                    );
+                }
+
+                $unit = $detail->alatUnit;
+
+                if (!$unit) {
+                    throw new \Exception(
+                        "Data unit untuk detail peminjaman #{$id} tidak ditemukan."
+                    );
+                }
+
+                $kondisi = $request->input("kondisi_kembali.$id");
+                $dendaKerusakan = (int) $request->input("denda_kerusakan.$id");
+
+                // Simpan pemeriksaan unit dan identitas Admin.
+                \App\Models\DetailPengembalian::create([
+                    'pengembalian_id' => $pengembalian->id,
+                    'detail_pinjam_id' => $detail->id,
+                    'diproses_oleh_id' => auth()->id(),
+                    'kondisi_kembali' => $kondisi,
+                    'denda_kerusakan' => $dendaKerusakan,
+                ]);
+
+                // Unit baik kembali tersedia, unit rusak masuk status rusak.
+                $unit->update([
+                    'kondisi' => $kondisi === 'Baik'
+                        ? 'tersedia'
+                        : 'rusak',
+                ]);
+            }
+
+            // Hitung seluruh unit yang sudah dikembalikan.
+            $detailKembali = \App\Models\DetailPengembalian::where(
+                'pengembalian_id',
+                $pengembalian->id
+            )->get();
+
+            $jumlahKembali = $detailKembali->count();
+            $jumlahSeluruhUnit = $peminjaman->detailPinjams->count();
+
+            $selesai = $jumlahKembali >= $jumlahSeluruhUnit;
+
+            // Ringkasan kondisi seluruh unit yang sudah diperiksa.
+            $daftarKondisi = $detailKembali
+                ->pluck('kondisi_kembali')
+                ->unique()
+                ->values();
+
+            $kondisiRingkasan = $daftarKondisi->count() === 1
+                ? $daftarKondisi->first()
+                : 'Campuran';
+
+            // Total denda kerusakan berasal dari setiap unit.
+            $totalDendaKerusakan = (int) $detailKembali->sum(
+                'denda_kerusakan'
+            );
+
+            // Denda keterlambatan baru dihitung ketika seluruh unit kembali.
+            $dendaKeterlambatan = 0;
+
+            if ($selesai) {
+                $tglRencana = \Carbon\Carbon::parse(
+                    $peminjaman->tgl_kembali_plan
+                )->startOfDay();
+
+                $tglKembali = \Carbon\Carbon::today();
+
+                if ($tglKembali->greaterThan($tglRencana)) {
+                    $hariTerlambat = $tglRencana->diffInDays($tglKembali);
+
+                    $dendaKeterlambatan = $hariTerlambat
+                        * config('denda.keterlambatan_per_hari');
+                }
+            }
+
+            // Pertahankan penanda parsial jika sebelumnya pernah
+            // dikembalikan melalui beberapa tahap.
+            $pernahParsial = (bool) $pengembalian->is_parsial;
+
+            $pengembalian->update([
+                'tgl_kembali' => now()->toDateString(),
+                'kondisi_kembali' => $kondisiRingkasan,
+                'denda' => $dendaKeterlambatan,
+                'denda_kerusakan' => $totalDendaKerusakan,
+                'petugas_id' => null,
+                'jumlah_unit_dikembalikan' => $jumlahKembali,
+                'is_parsial' => $pernahParsial || !$selesai,
+                'status_request' => 'disetujui',
+            ]);
+
+            // Status peminjaman baru selesai jika semua unit sudah kembali.
+            if ($selesai) {
+                $peminjaman->update([
+                    'status' => 'dikembalikan',
+                ]);
+            }
+
+            return [
+                'peminjaman' => $peminjaman,
+                'pengembalian' => $pengembalian,
+                'jumlah_kembali' => $jumlahKembali,
+                'jumlah_seluruh_unit' => $jumlahSeluruhUnit,
+                'selesai' => $selesai,
+            ];
+        });
+
+    } catch (\Throwable $e) {
+        return back()->with(
+            'error',
+            'Gagal memproses pengembalian parsial: ' . $e->getMessage()
+        );
+    }
+
+    // Catat aktivitas Admin setelah transaksi berhasil.
+    auth()->user()->logAktivitas()->create([
+        'aktivitas' => 'Memproses pengembalian '
+            . $hasil['jumlah_kembali']
+            . ' dari '
+            . $hasil['jumlah_seluruh_unit']
+            . ' unit pada peminjaman #'
+            . $hasil['peminjaman']->id
+            . '.',
+    ]);
+
+    // Notifikasi hanya dikirim ketika semua unit sudah dikembalikan.
+    if ($hasil['selesai'] && $hasil['peminjaman']->user) {
+        $hasil['peminjaman']->user->notify(
+            new \App\Notifications\PengembalianSelesaiNotification(
+                $hasil['pengembalian']
+            )
+        );
+    }
+
+    $pesan = $hasil['selesai']
+        ? 'Seluruh unit berhasil dikembalikan dan pengembalian telah selesai.'
+        : 'Pengembalian parsial berhasil diproses. Unit yang tersisa masih berstatus dipinjam.';
+
+    return redirect()
+        ->route('admin.peminjaman.index')
+        ->with('success', $pesan);
+}
+
 
     public function formPengembalianAdmin($id)
 {
@@ -905,11 +1208,13 @@ if ($pengembalian->peminjaman->user) {
 }
 
 
-    /**
- * Admin membuat pengajuan pengembalian secara langsung.
+
+/**
+ * Admin memproses pengembalian alat secara langsung.
  *
- * Digunakan sebagai jalur alternatif apabila Petugas
- * tidak dapat melakukan proses pengembalian.
+ * Admin melakukan pemeriksaan kondisi unit, mencatat denda,
+ * memperbarui kondisi alat, dan menyelesaikan pengembalian.
+ * Setiap unit mencatat ID pengguna yang benar-benar memprosesnya.
  */
 public function ajukanPengembalianAdmin(Request $request, $peminjamanId)
 {
@@ -918,83 +1223,199 @@ public function ajukanPengembalianAdmin(Request $request, $peminjamanId)
         'denda_kerusakan' => 'required|integer|min:0',
     ]);
 
-    DB::beginTransaction();
-
     try {
-        $peminjaman = Peminjaman::with('pengembalian')
-            ->findOrFail($peminjamanId);
+        $pengembalian = DB::transaction(function () use ($request, $peminjamanId) {
 
-        // Pastikan peminjaman masih aktif
-        if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
-            throw new \Exception(
-                'Peminjaman ini tidak dapat diajukan sebagai pengembalian.'
-            );
-        }
+            // Kunci peminjaman agar tidak diproses bersamaan.
+            $peminjaman = Peminjaman::whereKey($peminjamanId)
+                ->lockForUpdate()
+                ->firstOrFail();
 
-        $pengembalian = $peminjaman->pengembalian;
+            $peminjaman->load([
+                'user',
+                'detailPinjams.alatUnit.alat',
+            ]);
 
-        // Jika masih menunggu Admin
-        if (
-            $pengembalian &&
-            $pengembalian->status_request === 'menunggu'
-        ) {
-            throw new \Exception(
-                'Pengajuan pengembalian ini masih menunggu proses.'
-            );
-        }
+            if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
+                throw new \Exception(
+                    'Peminjaman ini tidak sedang aktif.'
+                );
+            }
 
-        // Jika sudah disetujui
-        if (
-            $pengembalian &&
-            $pengembalian->status_request === 'disetujui'
-        ) {
-            throw new \Exception(
-                'Pengembalian untuk peminjaman ini sudah disetujui.'
-            );
-        }
+            // Kunci data pengembalian jika sebelumnya sudah ada.
+            $pengembalian = Pengembalian::where(
+                'peminjaman_id',
+                $peminjaman->id
+            )->lockForUpdate()->first();
 
-        /*
-         * Jika sebelumnya pernah ditolak,
-         * gunakan data pengembalian yang sama.
-         */
-        if ($pengembalian) {
+            if (
+                $pengembalian &&
+                !in_array(
+                    $pengembalian->status_request,
+                    ['menunggu', 'ditolak', 'disetujui']
+                )
+            ) {
+                throw new \Exception(
+                    'Status pengembalian tidak dapat diproses.'
+                );
+            }
 
+            // Cari unit yang belum pernah dikembalikan.
+            $detailSudahKembali = $pengembalian
+                ? \App\Models\DetailPengembalian::where(
+                    'pengembalian_id',
+                    $pengembalian->id
+                )->pluck('detail_pinjam_id')->all()
+                : [];
+
+            $detailBelumKembali = $peminjaman->detailPinjams
+                ->whereNotIn('id', $detailSudahKembali);
+
+            if ($detailBelumKembali->isEmpty()) {
+                throw new \Exception(
+                    'Semua unit dalam peminjaman ini sudah dikembalikan.'
+                );
+            }
+
+            // Buat data induk jika belum pernah ada.
+            if (!$pengembalian) {
+                $pengembalian = Pengembalian::create([
+                    'peminjaman_id' => $peminjaman->id,
+                    'tgl_kembali' => now()->toDateString(),
+                    'kondisi_kembali' => $request->kondisi_kembali,
+                    'denda' => 0,
+                    'denda_kerusakan' => 0,
+                    'petugas_id' => null,
+                    'is_parsial' => 0,
+                    'jumlah_unit_dikembalikan' => 0,
+                    'status_request' => 'menunggu',
+                ]);
+            }
+
+            $kondisi = $request->kondisi_kembali;
+            $kondisiUnit = $kondisi === 'Baik'
+                ? 'tersedia'
+                : 'rusak';
+
+            // Catat setiap unit yang benar-benar diperiksa Admin.
+            foreach ($detailBelumKembali as $detailPinjam) {
+                if (!$detailPinjam->alatUnit) {
+                    throw new \Exception(
+                        'Data unit alat pada peminjaman tidak ditemukan.'
+                    );
+                }
+
+                \App\Models\DetailPengembalian::create([
+                    'pengembalian_id' => $pengembalian->id,
+                    'detail_pinjam_id' => $detailPinjam->id,
+                    'diproses_oleh_id' => auth()->id(),
+                    'kondisi_kembali' => $kondisi,
+                    'denda_kerusakan' => 0,
+                ]);
+
+                $detailPinjam->alatUnit->update([
+                    'kondisi' => $kondisiUnit,
+                ]);
+            }
+
+            // Hitung jumlah seluruh unit yang sudah dikembalikan.
+            $jumlahSudahKembali = \App\Models\DetailPengembalian::where(
+                'pengembalian_id',
+                $pengembalian->id
+            )->count();
+
+            $jumlahSeluruhUnit = $peminjaman->detailPinjams->count();
+
+            $sudahLengkap = $jumlahSudahKembali === $jumlahSeluruhUnit;
+
+            if (!$sudahLengkap) {
+                throw new \Exception(
+                    'Pengembalian belum mencakup seluruh unit.'
+                );
+            }
+
+            // Hitung denda keterlambatan setelah pengembalian lengkap.
+            $tglRencana = \Carbon\Carbon::parse(
+                $peminjaman->tgl_kembali_plan
+            )->startOfDay();
+
+            $tglKembali = now()->startOfDay();
+
+            $dendaKeterlambatan = 0;
+
+            if ($tglKembali->greaterThan($tglRencana)) {
+                $hariTerlambat = $tglRencana->diffInDays($tglKembali);
+
+                $tarifDenda = (int) config(
+                    'denda.keterlambatan_per_hari',
+                    3000
+                );
+
+                $dendaKeterlambatan = $hariTerlambat * $tarifDenda;
+            }
+
+            // Pertahankan denda kerusakan dari pengembalian sebelumnya.
+            $totalDendaKerusakan =
+                (int) $pengembalian->denda_kerusakan +
+                (int) $request->denda_kerusakan;
+
+            // Tentukan ringkasan kondisi semua unit.
+            $kondisiSemuaUnit = \App\Models\DetailPengembalian::where(
+                'pengembalian_id',
+                $pengembalian->id
+            )->distinct()->pluck('kondisi_kembali');
+
+            $kondisiRingkasan = $kondisiSemuaUnit->count() === 1
+                ? $kondisiSemuaUnit->first()
+                : 'Campuran';
+
+            // Selesaikan pengembalian.
             $pengembalian->update([
                 'tgl_kembali' => now()->toDateString(),
-                'kondisi_kembali' => $request->kondisi_kembali,
-                'denda' => 0,
-                'denda_kerusakan' => $request->denda_kerusakan,
-                'status_request' => 'menunggu',
+                'kondisi_kembali' => $kondisiRingkasan,
+                'denda' => $dendaKeterlambatan,
+                'denda_kerusakan' => $totalDendaKerusakan,
+                'petugas_id' => null,
+                'jumlah_unit_dikembalikan' => $jumlahSudahKembali,
+                'is_parsial' => $jumlahSudahKembali > 0 &&
+                    $jumlahSudahKembali < $jumlahSeluruhUnit
+                    ? 1
+                    : (int) $pengembalian->is_parsial,
+                'status_request' => 'disetujui',
             ]);
-} else {
 
-    $pengembalian = Pengembalian::create([
-        'peminjaman_id' => $peminjaman->id,
-        'tgl_kembali' => now()->toDateString(),
-        'kondisi_kembali' => $request->kondisi_kembali,
-        'denda' => 0,
-        'denda_kerusakan' => $request->denda_kerusakan,
-        'petugas_id' => auth()->id(),
-        'status_request' => 'menunggu',
-    ]);
-}
+            $peminjaman->update([
+                'status' => 'dikembalikan',
+            ]);
 
-        DB::commit();
+            return $pengembalian->fresh();
+        });
+
+        // Kirim notifikasi setelah transaksi berhasil.
+        $pengembalian->load([
+            'peminjaman.user',
+            'petugas',
+        ]);
+
+        if ($pengembalian->peminjaman?->user) {
+            $pengembalian->peminjaman->user->notify(
+                new \App\Notifications\PengembalianSelesaiNotification(
+                    $pengembalian
+                )
+            );
+        }
 
         return redirect()
             ->route('admin.pengembalian.index')
             ->with(
                 'success',
-                'Pengajuan pengembalian berhasil dibuat dan menunggu proses persetujuan.'
+                'Pengembalian berhasil diperiksa dan diselesaikan oleh Admin.'
             );
 
-    } catch (\Exception $e) {
-
-        DB::rollBack();
-
+    } catch (\Throwable $e) {
         return back()->with(
             'error',
-            'Pengajuan pengembalian gagal: ' . $e->getMessage()
+            'Proses pengembalian gagal: ' . $e->getMessage()
         );
     }
 }
@@ -1971,22 +2392,27 @@ public function showKategori($id)
         ])->findOrFail($id);
 
         /*
-        | Peminjaman yang masih dipinjam dikapus tanpa pengembalian:
-        | barang dianggap balik ke gudang, jadi unit kembali 'tersedia'.
+        | PERUBAHAN: Peminjaman dengan status 'dipinjam' atau 'telat'
+        | TIDAK BOLEH dihapus sesuai permintaan guru. Hanya peminjaman
+        | dengan status 'diajukan' atau 'dikembalikan' yang bisa dihapus.
         |
-        | Kalau sudah ada pengembalian tercatat (unit diapprove petugas
-        | lalu sudah diproses), kondisi unit dibiarkan apa adanya --
-        | pengembalian itu yang memegang jawabnya. Memaksa unit ke
-        | 'tersedia' di sini akan menghapus jejak kondisi rusak yang
-        | sudah disetujui petugas.
+        | Logika sebelumnya: Peminjaman yang masih dipinjam dikapus 
+        | tanpa pengembalian: barang dianggap balik ke gudang.
+        | Ini sekarang tidak diizinkan.
         */
         if (in_array($peminjaman->status, ['dipinjam', 'telat'])) {
+            return redirect()
+                ->route('admin.peminjaman.index')
+                ->with(
+                    'error',
+                    'Peminjaman dengan status "' . $peminjaman->status . '" tidak dapat dihapus. Silakan buat pengembalian terlebih dahulu.'
+                );
+        }
 
-            foreach (
-                $peminjaman->detailPinjams
-                as $detail
-            ) {
-
+        // Untuk peminjaman dengan status 'diajukan' atau 'dikembalikan'
+        // kembalikan unit ke kondisi tersedia jika belum ada pengembalian
+        if (in_array($peminjaman->status, ['diajukan', 'dikembalikan'])) {
+            foreach ($peminjaman->detailPinjams as $detail) {
                 $unit = $detail->alatUnit;
 
                 if (!$unit) {
@@ -2002,7 +2428,11 @@ public function showKategori($id)
                     continue;
                 }
 
-                $unit->update(['kondisi' => 'tersedia']);
+                // Untuk status diajukan, kembalikan unit ke tersedia
+                // Untuk status dikembalikan, sudah dikembalikan di pengembalian
+                if ($peminjaman->status === 'diajukan') {
+                    $unit->update(['kondisi' => 'tersedia']);
+                }
             }
         }
 

@@ -89,8 +89,8 @@
 
                 <div
                         class="alat-card group bg-white rounded-2xl border border-gray-200
-                            overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1
-                            transition-all duration-300"
+                        overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-1
+                        transition-all duration-300 flex flex-col h-full"
                         data-nama="{{ strtolower($alat->nama_alat) }}"
                         data-kategori="{{ strtolower($alat->kategori->nama_kategori ?? '') }}"
 
@@ -206,8 +206,8 @@
                     {{-- =========================
                         INFORMASI ALAT
                     ========================== --}}
-                    <div class="p-4">
-
+<div class="p-4 flex flex-col flex-1">
+    
                         {{-- Kategori --}}
                         <p class="text-xs font-semibold uppercase tracking-wide
                                   text-blue-600 mb-1">
@@ -355,9 +355,9 @@
 
                         <button
                             type="button"
-                            class="btn-pilih mt-4 w-full py-2.5 rounded-xl
-                                   border border-blue-200 text-blue-600
-                                   hover:bg-blue-50 font-semibold text-sm transition"
+                            class="btn-pilih mt-auto pt-4 w-full py-2.5 rounded-xl
+                                border border-blue-200 text-blue-600
+                                hover:bg-blue-50 font-semibold text-sm transition"
                             data-id="{{ $alat->id }}"
                         >
 

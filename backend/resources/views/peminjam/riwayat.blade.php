@@ -397,8 +397,7 @@
                         // beserta pesan error -- bukan halaman yang
                         // kembali ke tombol "Ajukan Lagi" tanpa
                         // penjelasan kenapa gagal.
-                        $formTerbuka = $errors->has('catatan')
-                            || $errors->has('diproses_oleh');
+                        $formTerbuka = $errors->has('catatan');
                     @endphp
 
                     @if($pg && $pg->status_request === 'menunggu')
@@ -482,35 +481,6 @@
                                      bg-emerald-50/50">
 
                             @csrf
-
-                            {{-- Pilih siapa yang memproses --}}
-                            <div>
-                                <label for="diproses_oleh-{{ $peminjaman->id }}"
-                                       class="block text-sm font-semibold text-gray-800 mb-1.5">
-                                    Diproses Oleh
-                                    <span class="text-red-500">*</span>
-                                </label>
-
-                                <select
-                                    id="diproses_oleh-{{ $peminjaman->id }}"
-                                    name="diproses_oleh"
-                                    required
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg
-                                           focus:outline-none focus:ring-2 focus:ring-emerald-500
-                                           text-sm bg-white">
-                                    <option value="admin">Admin</option>
-                                    <option value="petugas">Petugas</option>
-                                </select>
-
-                                @error('diproses_oleh')
-                                    <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
-                                @enderror
-
-                                <p class="mt-1.5 text-xs text-gray-500">
-                                    Pengajuan ini masuk ke antrean yang Anda pilih,
-                                    dan masuk ke laporan milik orang yang menyetujuinya.
-                                </p>
-                            </div>
 
                             <div>
                                 <label for="catatan-{{ $peminjaman->id }}"

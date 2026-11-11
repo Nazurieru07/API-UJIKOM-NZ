@@ -92,6 +92,14 @@ Route::post('/pengembalian/{id}/setujui', [AdminController::class, 'setujuiPenge
     Route::get('/peminjaman/{id}/pengembalian', [AdminController::class, 'formPengembalianAdmin'])
         ->name('peminjaman.pengembalian.form');
 
+        // Form pengembalian parsial langsung oleh Admin
+    Route::get('/pengembalian/parsial/{peminjamanId}', [AdminController::class, 'formPengembalianParsialAdmin'])
+    ->name('pengembalian.parsial.form');
+
+    // Proses pengembalian parsial langsung oleh Admin
+    Route::post('/pengembalian/parsial/{peminjamanId}', [AdminController::class, 'prosesPengembalianParsialAdmin'])
+    ->name('pengembalian.parsial.proses');
+
     // Proses pengajuan pengembalian oleh Admin
     Route::post('/peminjaman/{id}/pengembalian', [AdminController::class, 'ajukanPengembalianAdmin'])
         ->name('peminjaman.pengembalian.ajukan');
@@ -190,6 +198,16 @@ Route::middleware(['auth', 'user.aktif', 'role:petugas'])->prefix('petugas')->na
         ->name('edit-peminjaman.setujui');
     Route::post('/edit-peminjaman/{id}/tolak', [PetugasController::class, 'tolakEditPeminjaman'])
         ->name('edit-peminjaman.tolak');
+    
+    // ROUTE PENGEMBALIAN PARSIAL
+    Route::get('/pengembalian/parsial/{peminjamanId}', [PetugasController::class, 'formPengembalianParsial'])
+        ->name('pengembalian.parsial.form');
+    Route::post('/pengembalian/parsial/{peminjamanId}', [PetugasController::class, 'prosesPengembalianParsial'])
+        ->name('pengembalian.parsial.proses');
+    
+    // ROUTE PEMINJAMAN AKTIF (TERMASUK PARSIAL)
+    Route::get('/peminjaman/aktif', [PetugasController::class, 'peminjamanAktif'])
+        ->name('peminjaman.aktif');
 
 });
 

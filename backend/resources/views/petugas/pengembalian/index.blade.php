@@ -226,8 +226,10 @@
         $sudahDiajukan = $peminjaman->pengembalian
             && $peminjaman->pengembalian->status_request === 'menunggu';
 
+        // PERUBAHAN: Kolom diproses_oleh sudah dihapus
+        // Sekarang semua pengajuan pengembalian dari peminjam langsung ke petugas
         $dariPeminjam = $sudahDiajukan
-            && $peminjaman->pengembalian->diproses_oleh === 'petugas';
+            && $peminjaman->pengembalian->user_id !== auth()->id();
     @endphp
 
     @if($dariPeminjam)
@@ -255,60 +257,20 @@
 
     @else
 
-    <form
-        action="{{ route('petugas.pengembalian.ajukan', $peminjaman->id) }}"
-        method="POST"
-    >
-
-        @csrf
-
-        <div class="flex flex-col gap-2">
-
-            {{-- Kondisi --}}
-            <select
-                name="kondisi_kembali"
-                required
-                class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-
-                <option value="">
-                    Pilih Kondisi
-                </option>
-
-                <option value="Baik">
-                    Baik
-                </option>
-
-                <option value="Rusak">
-                    Rusak
-                </option>
-
-            </select>
-
-            {{-- Denda Kerusakan --}}
-            <input
-                type="number"
-                name="denda_kerusakan"
-                min="0"
-                value="0"
-                required
-                placeholder="Denda Kerusakan"
-                class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-
-
-            {{-- Tombol --}}
-            <button
-                type="submit"
-                onclick="return confirm('Apakah alat sudah benar-benar dikembalikan dan ingin mengajukan pengembalian kepada Admin?')"
-                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold transition"
-            >
-                Ajukan Pengembalian
-            </button>
-
-        </div>
-
-    </form>
+    <div class="flex flex-col gap-3">
+        {{-- Tombol untuk pengembalian parsial --}}
+        <a href="{{ route('petugas.pengembalian.parsial.form', $peminjaman->id) }}"
+           class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-xs font-semibold transition shadow-sm text-center">
+            Kembalikan Sebagian
+        </a>
+        
+        {{-- Tombol untuk pengembalian lengkap --}}
+        <button type="button"
+                onclick="openPengembalianModal({{ $peminjaman->id }})"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-semibold transition shadow-sm">
+            Kembalikan Semua
+        </button>
+    </div>
 
     @endif
 
@@ -343,4 +305,78 @@
 
 </div>
 
+{{-- Modal untuk pengembalian lengkap --}}
+<div id="pengembalianModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+        <div class="flex justify-between items-center p-5 border-b">
+            <h3 class="text-lg font-bold">Pengembalian Alat</h3>
+            <button type="button" onclick="closePengembalianModal()" class="text-gray-500 hover:text-red-500 text-2xl">
+                ×
+            </button>
+        </div>
+        
+        <form id="formPengembalian" action="" method="POST" class="p-5 space-y-4">
+            @csrf
+            <input type="hidden" id="peminjamanId" name="peminjaman_id">
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Kondisi Kembali
+                </label>
+                <select name="kondisi_kembali" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" required>
+                    <option value="Baik">Baik</option>
+                    <option value="Rusak">Rusak</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    Denda Kerusakan (Rp)
+                </label>
+                <input type="number" name="denda_kerusakan" value="0" min="0" 
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" required>
+                <p class="text-xs text-gray-500 mt-1">Isi 0 jika tidak ada kerusakan</p>
+            </div>
+            
+            <div class="border-t pt-4 flex justify-end space-x-3">
+                <button type="button" onclick="closePengembalianModal()" 
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">
+                    Batal
+                </button>
+                <button type="submit" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                    Proses Pengembalian
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @endsection
+
+@push('scripts')
+<script>
+function openPengembalianModal(peminjamanId) {
+    document.getElementById('peminjamanId').value = peminjamanId;
+    const form = document.getElementById('formPengembalian');
+    form.action = `/petugas/pengembalian/${peminjamanId}/ajukan`;
+    const modal = document.getElementById('pengembalianModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closePengembalianModal() {
+    const modal = document.getElementById('pengembalianModal');
+    modal.classList.remove('flex');
+    modal.classList.add('hidden');
+}
+
+// Handle form submission untuk pengembalian lengkap
+document.getElementById('formPengembalian').addEventListener('submit', function(e) {
+    if (!confirm('Apakah alat sudah benar-benar dikembalikan dan ingin mengajukan pengembalian?')) {
+        e.preventDefault();
+        return false;
+    }
+});
+</script>
+@endpush

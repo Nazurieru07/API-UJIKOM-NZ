@@ -159,31 +159,51 @@
         @endif
     </div>
 
-    {{-- RINGKASAN --}}
-    <table class="ringkasan">
-        <tr>
-            <td>
-                <div class="label">Total Pengembalian</div>
-                <div class="nilai">
-                    {{ $pengembalians->count() }}
-                </div>
-            </td>
+{{-- RINGKASAN --}}
+@php
+    // Menghitung denda keterlambatan milik Petugas finalisasi.
+    $totalDendaPetugas = $pengembalians->sum(function ($pengembalian) {
+        return (int) $pengembalian->petugas_id === (int) auth()->id()
+            ? (int) $pengembalian->denda
+            : 0;
+    });
 
-            <td>
-                <div class="label">Total Denda</div>
-                <div class="nilai">
-                    Rp {{ number_format($pengembalians->sum('denda'), 0, ',', '.') }}
-                </div>
-            </td>
+    // Menghitung denda kerusakan berdasarkan unit yang diproses.
+    $totalDendaKerusakanPetugas = $pengembalians->sum(function ($pengembalian) {
+        if ($pengembalian->is_parsial) {
+            return $pengembalian->detailPengembalians->sum('denda_kerusakan');
+        }
 
-            <td>
-                <div class="label">Total Denda Kerusakan</div>
-                <div class="nilai">
-                    Rp {{ number_format($pengembalians->sum('denda_kerusakan'), 0, ',', '.') }}
-                </div>
-            </td>
-        </tr>
-    </table>
+        return (int) $pengembalian->petugas_id === (int) auth()->id()
+            ? (int) $pengembalian->denda_kerusakan
+            : 0;
+    });
+@endphp
+
+<table class="ringkasan">
+    <tr>
+        <td>
+            <div class="label">Total Pengembalian</div>
+            <div class="nilai">
+                {{ $pengembalians->count() }}
+            </div>
+        </td>
+
+        <td>
+            <div class="label">Total Denda</div>
+            <div class="nilai">
+                Rp {{ number_format($totalDendaPetugas, 0, ',', '.') }}
+            </div>
+        </td>
+
+        <td>
+            <div class="label">Total Denda Kerusakan</div>
+            <div class="nilai">
+                Rp {{ number_format($totalDendaKerusakanPetugas, 0, ',', '.') }}
+            </div>
+        </td>
+    </tr>
+</table>
 
     {{-- TABEL LAPORAN --}}
     <table class="laporan">
@@ -201,71 +221,93 @@
             </tr>
         </thead>
 
-        <tbody>
+<tbody>
+    @forelse($pengembalians as $pengembalian)
+        <tr>
+            {{-- Nomor --}}
+            <td class="center">
+                {{ $loop->iteration }}
+            </td>
 
-            @forelse($pengembalians as $pengembalian)
+            {{-- Peminjam --}}
+            <td>
+                {{ $pengembalian->peminjaman->user->name ?? 'User Dihapus' }}
+            </td>
 
-                <tr>
-                    <td class="center">
-                        {{ $loop->iteration }}
-                    </td>
+            {{-- Unit yang diproses Petugas --}}
+            <td>
+                <ul>
+                    @foreach($pengembalian->detailPengembalians as $detailPengembalian)
+                        <li>
+                            {{ $detailPengembalian->detailPinjam?->alatUnit?->alat?->nama_alat ?? 'Alat Dihapus' }}
+                            ({{ $detailPengembalian->detailPinjam?->alatUnit?->serial_number ?? '-' }})
+                        </li>
+                    @endforeach
+                </ul>
+            </td>
 
-                    <td>
-                        {{ $pengembalian->peminjaman->user->name ?? 'User Dihapus' }}
-                    </td>
+            {{-- Tanggal Pinjam --}}
+            <td class="center">
+                {{ $pengembalian->peminjaman->tgl_pinjam->format('d-m-Y') }}
+            </td>
 
-                    <td>
-                        <ul>
-                            @foreach($pengembalian->peminjaman->detailPinjams as $detail)
-                                <li>
-                                    {{ $detail->alatUnit?->alat->nama_alat ?? 'Alat Dihapus' }}
-                                    ({{ $detail->alatUnit?->serial_number ?? '-' }})
-                                </li>
-                            @endforeach
-                        </ul>
-                    </td>
+            {{-- Tanggal Kembali --}}
+            <td class="center">
+                {{ $pengembalian->tgl_kembali->format('d-m-Y') }}
+            </td>
 
-                    <td class="center">
-                        {{ $pengembalian->peminjaman->tgl_pinjam->format('d-m-Y') }}
-                    </td>
+            {{-- Kondisi per unit --}}
+            <td>
+                @foreach($pengembalian->detailPengembalians as $detailPengembalian)
+                    <div>
+                        {{ $detailPengembalian->detailPinjam?->alatUnit?->alat?->nama_alat ?? 'Alat' }}:
+                        {{ $detailPengembalian->kondisi_kembali }}
+                    </div>
+                @endforeach
+            </td>
 
-                    <td class="center">
-                        {{ $pengembalian->tgl_kembali->format('d-m-Y') }}
-                    </td>
+            {{-- Denda keterlambatan --}}
+            <td class="right">
+                @php
+                    $dendaPetugas = (int) $pengembalian->petugas_id === (int) auth()->id()
+                        ? (int) $pengembalian->denda
+                        : 0;
+                @endphp
 
-                    <td>
-                        {{ $pengembalian->kondisi_kembali }}
-                    </td>
+                Rp {{ number_format($dendaPetugas, 0, ',', '.') }}
+            </td>
 
-                    <td class="right">
-                        Rp {{ number_format($pengembalian->denda, 0, ',', '.') }}
-                    </td>
+            {{-- Denda kerusakan --}}
+            <td class="right">
+                @php
+                    if ($pengembalian->is_parsial) {
+                        $dendaKerusakanPetugas = $pengembalian->detailPengembalians
+                            ->sum('denda_kerusakan');
+                    } else {
+                        $dendaKerusakanPetugas =
+                            (int) $pengembalian->petugas_id === (int) auth()->id()
+                                ? (int) $pengembalian->denda_kerusakan
+                                : 0;
+                    }
+                @endphp
 
-                    <td class="right">
-                        Rp {{ number_format($pengembalian->denda_kerusakan, 0, ',', '.') }}
-                    </td>
+                Rp {{ number_format($dendaKerusakanPetugas, 0, ',', '.') }}
+            </td>
 
-                    <td>
-                        @if($pengembalian->petugas)
-                            {{ $pengembalian->petugas->name }}
-                        @else
-                            Admin
-                        @endif
-                    </td>
-                </tr>
-
-            @empty
-
-                <tr>
-                    <td colspan="9" class="center">
-                        Belum ada data pengembalian.
-                    </td>
-                </tr>
-
-            @endforelse
-
-        </tbody>
-    </table>
+            {{-- Petugas yang membuat laporan --}}
+            <td>
+                {{ auth()->user()->name ?? 'Petugas' }}
+            </td>
+        </tr>
+    @empty
+        <tr>
+            <td colspan="9" class="center">
+                Belum ada data pengembalian.
+            </td>
+        </tr>
+    @endforelse
+</tbody>    
+</table>
 
     {{-- TANDA TANGAN --}}
     <div class="ttd">

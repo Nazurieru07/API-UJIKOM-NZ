@@ -368,6 +368,9 @@ class PeminjamController extends Controller
     | maupun denda, jadi yang dia kirim hanya catatan saja; kondisi
     | dan denda kerusakan diisi petugas/admin saat pemeriksaan.
     |
+    | PERUBAHAN: kolom diproses_oleh dihapus sesuai permintaan guru.
+    | Sekarang pengajuan dikirim ke semua admin dan petugas.
+    |
     | Yang TIDAK dilakukan method ini:
     | - tidak mengubah kondisi unit (stok belum kembali),
     | - tidak menghitung denda,
@@ -390,8 +393,6 @@ class PeminjamController extends Controller
         // tidak punya konteks kenapa barang dikembalikan.
         $validated = $request->validate([
             'catatan' => 'required|string|min:3|max:500',
-            // Pilih siapa yang memeriksa pengembalian ini.
-            'diproses_oleh' => ['required', 'string', Rule::in(['admin', 'petugas'])],
         ]);
 
         $existing = $peminjaman->pengembalian;
@@ -429,7 +430,6 @@ class PeminjamController extends Controller
                 'petugas_id' => null,
                 'status_request' => 'menunggu',
                 'catatan_peminjam' => $validated['catatan'],
-                'diproses_oleh' => $validated['diproses_oleh'],
             ];
 
             if ($existing) {
@@ -448,13 +448,8 @@ class PeminjamController extends Controller
                 ->with('error', 'Gagal mengajukan pengembalian: ' . $e->getMessage());
         }
 
-        // Notifikasi hanya ke yang dipilih peminjam: tidak perlu
-        // membebani role yang tidak akan memproses pengajuan ini.
-        $tujuan = $validated['diproses_oleh'] === 'petugas'
-            ? ['petugas']
-            : ['admin'];
-
-        User::whereIn('role', $tujuan)
+        // Notifikasi ke semua admin dan petugas (tanpa pilihan diproses_oleh)
+        User::whereIn('role', ['admin', 'petugas'])
             ->get()
             ->each(function ($recipient) use ($pengembalian) {
                 $recipient->notify(
@@ -462,15 +457,11 @@ class PeminjamController extends Controller
                 );
             });
 
-        $keAdmin = $validated['diproses_oleh'] === 'admin';
-
         return redirect()
             ->route('peminjam.riwayat')
             ->with(
                 'success',
-                $keAdmin
-                    ? 'Pengajuan pengembalian dikirim ke Admin. Serahkan barang Anda ke petugas untuk diperiksa.'
-                    : 'Pengajuan pengembalian dikirim ke Petugas. Serahkan barang yang dikembalikan ke petugas.'
+                'Pengajuan pengembalian dikirim ke Admin dan Petugas. Serahkan barang yang dikembalikan untuk diperiksa.'
             );
     }
 }

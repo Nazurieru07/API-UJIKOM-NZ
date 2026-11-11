@@ -7,6 +7,7 @@ use App\Models\AlatUnit;
 use App\Models\Kategori;
 use App\Models\Peminjaman;
 use App\Models\Pengembalian;
+use App\Models\DetailPengembalian;
 use App\Notifications\PeminjamanDisetujuiNotification;
 use App\Models\User;
 use App\Notifications\PengembalianDiajukanNotification;
@@ -19,6 +20,8 @@ use App\Notifications\PermintaanEditDiprosesNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use App\Notifications\PengembalianSelesaiNotification;
+use App\Exports\LaporanPengembalianExport;
+use App\Exports\LaporanPeminjamanAktifExport;
 
 class PetugasController extends Controller
 {
@@ -268,18 +271,19 @@ return redirect()
             'pengembalian'
         ])
             ->whereIn('status', ['dipinjam', 'telat'])
-            // Tiga sumber pengembalian di antrean petugas: belum diajukan,
-            // sebelumnya ditolak (ajukan ulang), atau pengajuan peminjam
-            // yang dialokasikan ke petugas. Tanpa ketiga-ketiganya,
-            // pengajuan peminjam tidak pernah diproses.
+            // TIGA sumber pengembalian di antrean petugas:
+            // 1. Belum ada pengembalian (belum diajukan)
+            // 2. Pengembalian ditolak (ajukan ulang)
+            // 3. Pengembalian menunggu dari peminjam
+            // CATATAN: Pengembalian parsial yang sudah disetujui TIDAK muncul di sini
+            // karena sudah diproses. Tapi peminjaman masih aktif sampai semua unit dikembalikan.
             ->where(function ($query) {
                 $query->whereDoesntHave('pengembalian')
                     ->orWhereHas('pengembalian', function ($q) {
                         $q->where('status_request', 'ditolak');
                     })
                     ->orWhereHas('pengembalian', function ($q) {
-                        $q->where('status_request', 'menunggu')
-                            ->where('diproses_oleh', 'petugas');
+                        $q->where('status_request', 'menunggu');
                     });
             })
             ->when($search, function ($query, $search) {
@@ -312,21 +316,12 @@ return redirect()
     }
 
 
+    
     /**
-     * Mengajukan pengembalian kepada Admin.
+     * Memproses pengembalian lengkap secara langsung oleh Petugas.
      *
-     * Petugas menentukan:
-     * - kondisi alat (Baik / Rusak Ringan / Rusak Berat)
-     * - denda kerusakan (angka bebas, bisa Rp0)
-     *
-     * Kenapa denda KETERLAMBATAN tidak diisi petugas:
-     * denda ini dihitung sistem dari selisih tgl_kembali_plan vs
-     * tgl_kembali aktual, agar tidak bisa dimanipulasi. Dihitung saat
-     * Admin menyetujui (AdminController::setujuiPengembalian), bukan sini.
-     *
-     * Relasi peminjaman -> pengembalian itu 1:1 (unique), jadi jika
-     * pengembalian sebelumnya DITOLAK, data lama dipakai ulang (update)
-     * bukan dibuat baru, agar tidak melanggar constraint unik.
+     * Petugas memeriksa kondisi alat, memasukkan total denda kerusakan,
+     * lalu sistem mencatat setiap unit yang benar-benar dikembalikan.
      */
     public function ajukanPengembalian(Request $request, $peminjamanId)
     {
@@ -335,101 +330,167 @@ return redirect()
             'denda_kerusakan' => 'required|integer|min:0',
         ]);
 
-        DB::beginTransaction();
-
         try {
-            $peminjaman = Peminjaman::with('pengembalian')
-                ->findOrFail($peminjamanId);
+            // Seluruh proses pengembalian dilakukan dalam satu transaksi.
+            $hasil = DB::transaction(function () use ($request, $peminjamanId) {
 
-            // Hanya peminjaman yang masih berjalan yang bisa
-            // diajukan pengembaliannya. Yang sudah dikembalikan ditolak.
-            if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
-                throw new \Exception(
-                    'Peminjaman ini tidak dapat diajukan sebagai pengembalian.'
-                );
-            }
+                // Kunci peminjaman agar dua proses tidak mengembalikan
+                // unit yang sama secara bersamaan.
+                $peminjaman = Peminjaman::whereKey($peminjamanId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
-            $pengembalian = $peminjaman->pengembalian;
+                $peminjaman->load([
+                    'user',
+                    'detailPinjams.alatUnit',
+                ]);
 
-            // Pengajuan masih menunggu Admin
-            if (
-                $pengembalian &&
-                $pengembalian->status_request === 'menunggu'
-            ) {
-                throw new \Exception(
-                    'Pengajuan pengembalian ini masih menunggu persetujuan Admin.'
-                );
-            }
+                if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
+                    throw new \Exception(
+                        'Peminjaman ini tidak sedang dalam status aktif.'
+                    );
+                }
 
-            // Pengembalian sudah disetujui
-            if (
-                $pengembalian &&
-                $pengembalian->status_request === 'disetujui'
-            ) {
-                throw new \Exception(
-                    'Pengembalian untuk peminjaman ini sudah disetujui Admin.'
-                );
-            }
+                // Kunci data pengembalian jika sebelumnya sudah dibuat.
+                $pengembalian = Pengembalian::where(
+                    'peminjaman_id',
+                    $peminjaman->id
+                )->lockForUpdate()->first();
 
-            /*
-             * Jika pengajuan sebelumnya ditolak,
-             * gunakan kembali data pengembalian tersebut.
-             */
-            if ($pengembalian) {
+                // Buat data pengembalian jika belum pernah ada.
+                if (!$pengembalian) {
+                    $pengembalian = Pengembalian::create([
+                        'peminjaman_id' => $peminjaman->id,
+                        'tgl_kembali' => now()->toDateString(),
+                        'kondisi_kembali' => $request->kondisi_kembali,
+                        'denda' => 0,
+                        'denda_kerusakan' => 0,
+                        'petugas_id' => auth()->id(),
+                        'is_parsial' => false,
+                        'jumlah_unit_dikembalikan' => 0,
+                        'status_request' => 'menunggu',
+                    ]);
+                }
 
+                // Ambil detail unit yang sudah pernah dikembalikan.
+                $detailSudahKembali = \App\Models\DetailPengembalian::where(
+                    'pengembalian_id',
+                    $pengembalian->id
+                )->pluck('detail_pinjam_id')->all();
+
+                // Cari unit yang belum pernah dikembalikan.
+                $detailBelumKembali = $peminjaman->detailPinjams
+                    ->whereNotIn('id', $detailSudahKembali);
+
+                if ($detailBelumKembali->isEmpty()) {
+                    throw new \Exception(
+                        'Semua unit pada peminjaman ini sudah dikembalikan.'
+                    );
+                }
+
+                // Simpan kondisi setiap unit dan identitas Petugas.
+                foreach ($detailBelumKembali as $detail) {
+                    $unit = $detail->alatUnit;
+
+                    if (!$unit) {
+                        throw new \Exception(
+                            'Data unit alat tidak ditemukan.'
+                        );
+                    }
+
+                    \App\Models\DetailPengembalian::create([
+                        'pengembalian_id' => $pengembalian->id,
+                        'detail_pinjam_id' => $detail->id,
+                        'diproses_oleh_id' => auth()->id(),
+                        'kondisi_kembali' => $request->kondisi_kembali,
+                        // Denda kerusakan dicatat sebagai total di tabel
+                        // pengembalian, bukan digandakan pada setiap unit.
+                        'denda_kerusakan' => 0,
+                    ]);
+
+                    // Perbarui kondisi unit sesuai hasil pemeriksaan.
+                    $unit->update([
+                        'kondisi' => $request->kondisi_kembali === 'Baik'
+                            ? 'tersedia'
+                            : 'rusak',
+                    ]);
+                }
+
+                // Hitung jumlah seluruh unit yang sudah dikembalikan.
+                $jumlahSudahKembali = \App\Models\DetailPengembalian::where(
+                    'pengembalian_id',
+                    $pengembalian->id
+                )->count();
+
+                $jumlahSeluruhUnit = $peminjaman->detailPinjams->count();
+
+                // Hitung denda keterlambatan jika melewati tanggal rencana.
+                $tanggalKembali = now()->startOfDay();
+                $tanggalRencana = \Carbon\Carbon::parse(
+                    $peminjaman->tgl_kembali_plan
+                )->startOfDay();
+
+                $hariTerlambat = $tanggalKembali->greaterThan($tanggalRencana)
+                    ? (int) $tanggalRencana->diffInDays($tanggalKembali)
+                    : 0;
+
+                $tarifDenda = config('denda.keterlambatan_per_hari', 3000);
+                $dendaKeterlambatan = $hariTerlambat * $tarifDenda;
+
+                // Simpan total denda kerusakan dan informasi pengembalian.
                 $pengembalian->update([
-                    'tgl_kembali' => now()->toDateString(),
+                    'tgl_kembali' => $tanggalKembali->toDateString(),
                     'kondisi_kembali' => $request->kondisi_kembali,
-                    'denda' => 0,
-                    'denda_kerusakan' => $request->denda_kerusakan,
+                    'denda' => $dendaKeterlambatan,
+                    'denda_kerusakan' =>
+                        (int) $pengembalian->denda_kerusakan
+                        + (int) $request->denda_kerusakan,
                     'petugas_id' => auth()->id(),
-                    'status_request' => 'menunggu',
+                    'jumlah_unit_dikembalikan' => $jumlahSudahKembali,
+                    'is_parsial' => count($detailSudahKembali) > 0,
+                    'status_request' => 'disetujui',
                 ]);
 
-            } else {
+                // Pengembalian lengkap berarti seluruh unit sudah kembali.
+                if ($jumlahSudahKembali !== $jumlahSeluruhUnit) {
+                    throw new \Exception(
+                        'Jumlah unit yang dikembalikan belum sesuai.'
+                    );
+                }
 
-                // Jika belum pernah ada pengajuan
-                $pengembalian = Pengembalian::create([
-                    'peminjaman_id' => $peminjaman->id,
-                    'tgl_kembali' => now()->toDateString(),
-                    'kondisi_kembali' => $request->kondisi_kembali,
-                    'denda' => 0,
-                    'denda_kerusakan' => $request->denda_kerusakan,
-                    'petugas_id' => auth()->id(),
-                    'status_request' => 'menunggu',
+                $peminjaman->update([
+                    'status' => 'dikembalikan',
                 ]);
-            }
 
-            DB::commit();
+                return [
+                    'peminjaman' => $peminjaman,
+                    'pengembalian' => $pengembalian,
+                ];
+            });
 
-// Kirim notifikasi ke semua Admin
-User::where('role', 'admin')
-    ->get()
-    ->each(function ($admin) use ($pengembalian) {
-        $admin->notify(
-            new PengembalianDiajukanNotification($pengembalian)
-        );
-    });
-
-return redirect()
-    ->back()
-                ->with(
-                    'success',
-                    'Pengajuan pengembalian berhasil dikirim ke Admin untuk diperiksa.'
+            // Kirim notifikasi setelah transaksi berhasil disimpan.
+            if ($hasil['peminjaman']->user) {
+                $hasil['peminjaman']->user->notify(
+                    new PengembalianSelesaiNotification(
+                        $hasil['pengembalian']->load('petugas')
+                    )
                 );
-
-        } catch (\Exception $e) {
-
-            DB::rollBack();
+            }
 
             return redirect()
                 ->back()
                 ->with(
-                    'error',
-                    'Terjadi kesalahan: ' . $e->getMessage()
+                    'success',
+                    'Pengembalian berhasil diproses. Seluruh unit telah dicatat dan status peminjaman diperbarui.'
                 );
+
+        } catch (\Throwable $e) {
+            return redirect()
+                ->back()
+                ->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
         }
     }
+
 
 
     // =========================================================
@@ -450,44 +511,92 @@ return redirect()
     {
         $tanggalMulai = $request->input('tanggal_mulai');
         $tanggalSelesai = $request->input('tanggal_selesai');
+        $jenisLaporan = $request->input('jenis_laporan', 'pengembalian'); // 'pengembalian' atau 'peminjaman'
 
-        $query = Pengembalian::with([
-            'peminjaman.user',
-            'peminjaman.detailPinjams.alatUnit.alat',
-            'petugas'
-        ])
-            ->where('status_request', 'disetujui')
-            // Petugas hanya melihat pengembalian yang diprosesnya sendiri.
-            // Admin (menu admin/laporan) melihat semuanya.
-            ->where('petugas_id', auth()->id());
+        if ($jenisLaporan === 'pengembalian') {
+            // Laporan pengembalian (seperti sebelumnya)
+            // Laporan pengembalian hanya menampilkan unit
+// yang benar-benar diproses oleh Petugas yang sedang login.
+$query = Pengembalian::with([
+    'peminjaman.user',
+    'petugas',
+    'detailPengembalians' => function ($q) {
+        $q->where('diproses_oleh_id', auth()->id())
+          ->with('detailPinjam.alatUnit.alat');
+    }
+])
+    ->where('status_request', 'disetujui')
+    ->whereHas('detailPengembalians', function ($q) {
+        $q->where('diproses_oleh_id', auth()->id());
+    });
 
-        // Filter tanggal mulai
-        if (!empty($tanggalMulai)) {
-            $query->whereDate(
-                'tgl_kembali',
-                '>=',
-                $tanggalMulai
-            );
+            // Filter tanggal mulai
+            if (!empty($tanggalMulai)) {
+                $query->whereDate(
+                    'tgl_kembali',
+                    '>=',
+                    $tanggalMulai
+                );
+            }
+
+            // Filter tanggal selesai
+            if (!empty($tanggalSelesai)) {
+                $query->whereDate(
+                    'tgl_kembali',
+                    '<=',
+                    $tanggalSelesai
+                );
+            }
+
+            $data = $query
+                ->orderBy('tgl_kembali', 'desc')
+                ->paginate(10)
+                ->withQueryString();
+                
+            $viewData = 'pengembalians';
+            
+        } else {
+            // Laporan peminjaman aktif (yang masih dipinjam)
+            // PERUBAHAN: Petugas bisa melihat SEMUA peminjaman aktif
+            // karena untuk monitoring barang yang masih dipinjam
+            $query = Peminjaman::with([
+                'user',
+                'detailPinjams.alatUnit.alat',
+                'pengembalian'
+            ])
+                ->whereIn('status', ['dipinjam', 'telat']);
+
+            // Filter tanggal mulai (tanggal pinjam)
+            if (!empty($tanggalMulai)) {
+                $query->whereDate(
+                    'tgl_pinjam',
+                    '>=',
+                    $tanggalMulai
+                );
+            }
+
+            // Filter tanggal selesai (tanggal pinjam)
+            if (!empty($tanggalSelesai)) {
+                $query->whereDate(
+                    'tgl_pinjam',
+                    '<=',
+                    $tanggalSelesai
+                );
+            }
+
+            $data = $query
+                ->orderBy('tgl_pinjam', 'desc')
+                ->paginate(10)
+                ->withQueryString();
+                
+            $viewData = 'peminjamans';
         }
-
-        // Filter tanggal selesai
-        if (!empty($tanggalSelesai)) {
-            $query->whereDate(
-                'tgl_kembali',
-                '<=',
-                $tanggalSelesai
-            );
-        }
-
-        $pengembalians = $query
-            ->orderBy('tgl_kembali', 'desc')
-            ->paginate(10)
-            ->withQueryString();
 
         return view('petugas.laporan.index', [
-            'pengembalians' => $pengembalians,
+            $viewData => $data,
             'tanggalMulai' => $tanggalMulai,
             'tanggalSelesai' => $tanggalSelesai,
+            'jenisLaporan' => $jenisLaporan,
         ]);
     }
 
@@ -507,44 +616,89 @@ return redirect()
         $request->validate([
             'tanggal_mulai' => 'nullable|date',
             'tanggal_selesai' => 'nullable|date|after_or_equal:tanggal_mulai',
+            'jenis_laporan' => 'nullable|in:pengembalian,peminjaman',
         ]);
 
         $tanggalMulai = $request->input('tanggal_mulai');
         $tanggalSelesai = $request->input('tanggal_selesai');
+        $jenisLaporan = $request->input('jenis_laporan', 'pengembalian');
 
-        $query = Pengembalian::with([
-            'peminjaman.user',
-            'peminjaman.detailPinjams.alatUnit.alat',
-            'petugas'
-        ])
-            ->where('status_request', 'disetujui')
-            // Petugas hanya melihat pengembalian yang diprosesnya sendiri.
-            ->where('petugas_id', auth()->id());
+        if ($jenisLaporan === 'pengembalian') {
+$query = Pengembalian::with([
+    'peminjaman.user',
+    'petugas',
+    'detailPengembalians' => function ($q) {
+        $q->where('diproses_oleh_id', auth()->id())
+          ->with('detailPinjam.alatUnit.alat');
+    }
+])
+    ->where('status_request', 'disetujui')
+    ->whereHas('detailPengembalians', function ($q) {
+        $q->where('diproses_oleh_id', auth()->id());
+    });
 
-        // Filter tanggal mulai
-        if ($tanggalMulai) {
-            $query->whereDate(
-                'tgl_kembali',
-                '>=',
-                $tanggalMulai
-            );
+            // Filter tanggal mulai
+            if ($tanggalMulai) {
+                $query->whereDate(
+                    'tgl_kembali',
+                    '>=',
+                    $tanggalMulai
+                );
+            }
+
+            // Filter tanggal selesai
+            if ($tanggalSelesai) {
+                $query->whereDate(
+                    'tgl_kembali',
+                    '<=',
+                    $tanggalSelesai
+                );
+            }
+
+            $data = $query
+                ->orderBy('tgl_kembali', 'desc')
+                ->get();
+                
+            $view = 'petugas.laporan.pdf';
+            $viewData = 'pengembalians';
+        } else {
+            $query = Peminjaman::with([
+                'user',
+                'detailPinjams.alatUnit.alat',
+                'pengembalian'
+            ])
+                ->whereIn('status', ['dipinjam', 'telat']);
+                // PERUBAHAN: Petugas bisa melihat SEMUA peminjaman aktif
+                // karena untuk monitoring barang yang masih dipinjam
+
+            // Filter tanggal mulai
+            if ($tanggalMulai) {
+                $query->whereDate(
+                    'tgl_pinjam',
+                    '>=',
+                    $tanggalMulai
+                );
+            }
+
+            // Filter tanggal selesai
+            if ($tanggalSelesai) {
+                $query->whereDate(
+                    'tgl_pinjam',
+                    '<=',
+                    $tanggalSelesai
+                );
+            }
+
+            $data = $query
+                ->orderBy('tgl_pinjam', 'desc')
+                ->get();
+                
+            $view = 'petugas.laporan.peminjaman-pdf';
+            $viewData = 'peminjamans';
         }
 
-        // Filter tanggal selesai
-        if ($tanggalSelesai) {
-            $query->whereDate(
-                'tgl_kembali',
-                '<=',
-                $tanggalSelesai
-            );
-        }
-
-        $pengembalians = $query
-            ->orderBy('tgl_kembali', 'desc')
-            ->get();
-
-        $pdf = Pdf::loadView('petugas.laporan.pdf', [
-            'pengembalians' => $pengembalians,
+        $pdf = Pdf::loadView($view, [
+            $viewData => $data,
             'tanggalMulai' => $tanggalMulai,
             'tanggalSelesai' => $tanggalSelesai,
         ]);
@@ -565,36 +719,72 @@ return redirect()
         $request->validate([
             'tanggal_mulai' => 'nullable|date',
             'tanggal_selesai' => 'nullable|date|after_or_equal:tanggal_mulai',
+            'jenis_laporan' => 'nullable|in:pengembalian,peminjaman',
         ]);
 
         $tanggalMulai = $request->input('tanggal_mulai');
         $tanggalSelesai = $request->input('tanggal_selesai');
+        $jenisLaporan = $request->input('jenis_laporan', 'pengembalian');
+        
+        if ($jenisLaporan === 'pengembalian') {
+    // Laporan hanya mengambil unit yang diproses Petugas yang login.
+    $query = Pengembalian::with([
+        'peminjaman.user',
+        'detailPengembalians' => function ($q) {
+            $q->where('diproses_oleh_id', auth()->id())
+                ->with('detailPinjam.alatUnit.alat');
+        }
+    ])
+        ->where('status_request', 'disetujui')
+        ->whereHas('detailPengembalians', function ($q) {
+            $q->where('diproses_oleh_id', auth()->id());
+        });
 
-        $query = Pengembalian::with([
-            'peminjaman.user',
-            'peminjaman.detailPinjams.alatUnit.alat',
-            'petugas'
-        ])
-            ->where('status_request', 'disetujui')
-            ->where('petugas_id', auth()->id());
+    // Filter tanggal pengembalian.
+    if ($tanggalMulai) {
+        $query->whereDate('tgl_kembali', '>=', $tanggalMulai);
+    }
 
-        if ($tanggalMulai) {
-            $query->whereDate('tgl_kembali', '>=', $tanggalMulai);
+    if ($tanggalSelesai) {
+        $query->whereDate('tgl_kembali', '<=', $tanggalSelesai);
+    }
+
+    $data = $query->orderBy('tgl_kembali', 'desc')->get();
+
+    // Menggunakan Export khusus Petugas agar Export Admin tetap aman.
+    $exportClass = \App\Exports\LaporanPengembalianPetugasExport::class;
+    $namaFile = 'laporan-pengembalian-alat';
+    
+        } else {
+            $query = Peminjaman::with([
+                'user',
+                'detailPinjams.alatUnit.alat',
+                'pengembalian'
+            ])
+                ->whereIn('status', ['dipinjam', 'telat']);
+                // PERUBAHAN: Petugas bisa melihat SEMUA peminjaman aktif
+                // karena untuk monitoring barang yang masih dipinjam
+
+            if ($tanggalMulai) {
+                $query->whereDate('tgl_pinjam', '>=', $tanggalMulai);
+            }
+
+            if ($tanggalSelesai) {
+                $query->whereDate('tgl_pinjam', '<=', $tanggalSelesai);
+            }
+
+            $data = $query->orderBy('tgl_pinjam', 'desc')->get();
+            
+            $exportClass = \App\Exports\LaporanPeminjamanAktifExport::class;
+            $namaFile = 'laporan-barang-dipinjam';
         }
 
-        if ($tanggalSelesai) {
-            $query->whereDate('tgl_kembali', '<=', $tanggalSelesai);
-        }
-
-        $pengembalians = $query->orderBy('tgl_kembali', 'desc')->get();
-
-        $namaFile = 'laporan-pengembalian-alat';
         if ($tanggalMulai || $tanggalSelesai) {
             $namaFile .= '-' . ($tanggalMulai ?? 'awal') . '-sd-' . ($tanggalSelesai ?? 'akhir');
         }
 
-        return (new \App\Exports\LaporanPengembalianExport(
-            $pengembalians,
+        return (new $exportClass(
+            $data,
             $tanggalMulai,
             $tanggalSelesai,
             auth()->user()->name
@@ -985,5 +1175,353 @@ return redirect()
         return redirect()
             ->route('petugas.pengembalian.index')
             ->with('success', 'Pengajuan pengembalian ditolak. Peminjam bisa mengajukan ulang.');
+    }
+    
+    /**
+     * Form untuk pengembalian parsial (kembalikan sebagian alat)
+     */
+    public function formPengembalianParsial($peminjamanId)
+    {
+        $peminjaman = Peminjaman::with([
+            'user',
+            'detailPinjams.alatUnit.alat',
+            'pengembalian.detailPengembalians'
+        ])->findOrFail($peminjamanId);
+
+        // Simpan status awal agar status telat tidak berubah saat pengembalian parsial
+        $statusAwalPeminjaman = $peminjaman->status;
+        
+        // Cek apakah peminjaman masih aktif
+        if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
+            return redirect()
+                ->route('petugas.peminjaman.index')
+                ->with('error', 'Peminjaman ini tidak dapat dibuatkan pengembalian parsial.');
+        }
+        
+        // Cek apakah sudah ada pengembalian yang menunggu
+        if ($peminjaman->pengembalian && $peminjaman->pengembalian->status_request === 'menunggu') {
+            return redirect()
+                ->route('petugas.peminjaman.index')
+                ->with('error', 'Pengajuan pengembalian untuk peminjaman ini masih menunggu proses.');
+        }
+        
+        return view('petugas.pengembalian.parsial', compact('peminjaman'));
+    }
+    
+    /**
+     * Proses pengembalian parsial (kembalikan sebagian alat)
+     */
+    
+    /**
+     * Memproses pengembalian parsial secara langsung oleh Petugas.
+     *
+     * Setiap unit diperiksa secara terpisah dan memiliki kondisi
+     * serta nominal denda kerusakan masing-masing.
+     */
+    public function prosesPengembalianParsial(Request $request, $peminjamanId)
+    {
+        // Validasi daftar unit yang dipilih.
+        $detailPinjamIds = $request->input('detail_pinjam_id', []);
+
+        $rules = [
+            'detail_pinjam_id' => 'required|array|min:1',
+            'detail_pinjam_id.*' => 'required|integer|distinct|exists:detail_pinjam,id',
+            'kondisi_kembali' => 'required|array',
+            'denda_kerusakan' => 'required|array',
+        ];
+
+        // Setiap unit wajib memiliki kondisi dan nominal denda.
+        foreach (is_array($detailPinjamIds) ? $detailPinjamIds : [] as $id) {
+            if (filter_var($id, FILTER_VALIDATE_INT) !== false) {
+                $rules["kondisi_kembali.$id"] = 'required|in:Baik,Rusak';
+                $rules["denda_kerusakan.$id"] = 'required|integer|min:0';
+            }
+        }
+
+        $request->validate($rules);
+
+        try {
+            // Transaksi menjaga agar seluruh proses berhasil atau dibatalkan.
+            $hasil = DB::transaction(function () use ($request, $peminjamanId) {
+
+                // Kunci peminjaman agar tidak diproses bersamaan.
+                $peminjaman = Peminjaman::whereKey($peminjamanId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $peminjaman->load([
+                    'user',
+                    'detailPinjams.alatUnit',
+                ]);
+
+                // Pastikan peminjaman masih aktif.
+                if (!in_array($peminjaman->status, ['dipinjam', 'telat'])) {
+                    throw new \Exception(
+                        'Peminjaman ini tidak dapat diproses karena sudah tidak aktif.'
+                    );
+                }
+
+                // Kunci data pengembalian jika sudah pernah dibuat.
+                $pengembalian = Pengembalian::where(
+                    'peminjaman_id',
+                    $peminjaman->id
+                )->lockForUpdate()->first();
+
+                // Buat data pengembalian jika belum tersedia.
+                if (!$pengembalian) {
+                    $pengembalian = Pengembalian::create([
+                        'peminjaman_id' => $peminjaman->id,
+                        'tgl_kembali' => now()->toDateString(),
+                        'kondisi_kembali' => null,
+                        'denda' => 0,
+                        'denda_kerusakan' => 0,
+                        'petugas_id' => auth()->id(),
+                        'status_request' => 'disetujui',
+                        'is_parsial' => true,
+                        'jumlah_unit_dikembalikan' => 0,
+                    ]);
+                }
+
+                // Permintaan yang masih menunggu boleh langsung diperiksa
+                // dan diproses oleh Petugas.
+                // Permintaan yang ditolak juga dapat diproses kembali.
+
+                // Ambil jumlah unit yang sudah pernah dikembalikan.
+                $jumlahSebelumnya = DetailPengembalian::where(
+                    'pengembalian_id',
+                    $pengembalian->id
+                )->count();
+
+                $totalUnit = $peminjaman->detailPinjams->count();
+
+                if ($jumlahSebelumnya >= $totalUnit) {
+                    throw new \Exception(
+                        'Semua unit pada peminjaman ini sudah dikembalikan.'
+                    );
+                }
+
+                $jumlahUnitDiproses = 0;
+
+                // Proses setiap unit yang dipilih Petugas.
+                foreach ($request->detail_pinjam_id as $detailPinjamId) {
+
+                    $detailPinjam = $peminjaman->detailPinjams
+                        ->firstWhere('id', (int) $detailPinjamId);
+
+                    // Pastikan unit memang bagian dari peminjaman ini.
+                    if (!$detailPinjam) {
+                        throw new \Exception(
+                            'Unit yang dipilih tidak termasuk dalam peminjaman ini.'
+                        );
+                    }
+
+                    if (!$detailPinjam->alatUnit) {
+                        throw new \Exception(
+                            'Data unit alat tidak ditemukan.'
+                        );
+                    }
+
+                    // Cegah unit yang pernah dikembalikan agar tidak diproses ulang.
+                    $sudahDikembalikan = DetailPengembalian::where(
+                        'detail_pinjam_id',
+                        $detailPinjamId
+                    )->exists();
+
+                    if ($sudahDikembalikan) {
+                        throw new \Exception(
+                            'Salah satu unit yang dipilih sudah pernah dikembalikan.'
+                        );
+                    }
+
+                    $kondisiKembali = $request->input(
+                        "kondisi_kembali.$detailPinjamId"
+                    );
+
+                    $dendaKerusakan = (int) $request->input(
+                        "denda_kerusakan.$detailPinjamId"
+                    );
+
+                    // Catat hasil pemeriksaan dan identitas Petugas.
+                    DetailPengembalian::create([
+                        'pengembalian_id' => $pengembalian->id,
+                        'detail_pinjam_id' => $detailPinjam->id,
+                        'diproses_oleh_id' => auth()->id(),
+                        'kondisi_kembali' => $kondisiKembali,
+                        'denda_kerusakan' => $dendaKerusakan,
+                    ]);
+
+                    // Perbarui kondisi unit setelah pemeriksaan.
+                    $detailPinjam->alatUnit->update([
+                        'kondisi' => $kondisiKembali === 'Baik'
+                            ? 'tersedia'
+                            : 'rusak',
+                    ]);
+
+                    $jumlahUnitDiproses++;
+                }
+
+                // Hitung jumlah unit yang sudah dikembalikan setelah batch ini.
+                $jumlahSudahKembali = DetailPengembalian::where(
+                    'pengembalian_id',
+                    $pengembalian->id
+                )->count();
+
+                // Hitung total denda kerusakan dari seluruh batch.
+                $totalDendaKerusakan = DetailPengembalian::where(
+                    'pengembalian_id',
+                    $pengembalian->id
+                )->sum('denda_kerusakan');
+
+                // Periksa apakah seluruh unit sudah dikembalikan.
+                $semuaSudahKembali = $jumlahSudahKembali >= $totalUnit;
+
+                // Denda keterlambatan baru dihitung saat pengembalian lengkap.
+                $dendaKeterlambatan = 0;
+
+                if ($semuaSudahKembali) {
+                    $tanggalKembali = now()->startOfDay();
+
+                    $tanggalRencana = \Carbon\Carbon::parse(
+                        $peminjaman->tgl_kembali_plan
+                    )->startOfDay();
+
+                    $hariTerlambat = $tanggalKembali->greaterThan($tanggalRencana)
+                        ? (int) $tanggalRencana->diffInDays($tanggalKembali)
+                        : 0;
+
+                    $dendaKeterlambatan = $hariTerlambat
+                        * config('denda.keterlambatan_per_hari', 3000);
+                }
+
+                // Jika kondisi unit berbeda, gunakan ringkasan Campuran.
+                $kondisiUnik = DetailPengembalian::where(
+                    'pengembalian_id',
+                    $pengembalian->id
+                )->distinct()->pluck('kondisi_kembali');
+
+                $kondisiRingkasan = $kondisiUnik->count() === 1
+                    ? $kondisiUnik->first()
+                    : 'Campuran';
+
+                // Simpan hasil keseluruhan pengembalian.
+                $pengembalian->update([
+                    'tgl_kembali' => now()->toDateString(),
+                    'kondisi_kembali' => $semuaSudahKembali
+                        ? $kondisiRingkasan
+                        : null,
+                    'denda' => $dendaKeterlambatan,
+                    'denda_kerusakan' => $totalDendaKerusakan,
+                    'petugas_id' => auth()->id(),
+                    'jumlah_unit_dikembalikan' => $jumlahSudahKembali,
+                    // Tetap true jika pengembalian diselesaikan beberapa batch.
+                    'is_parsial' => $jumlahSebelumnya > 0 || !$semuaSudahKembali,
+                    'status_request' => 'disetujui',
+                ]);
+
+                // Status peminjaman hanya berubah ketika semua unit kembali.
+                if ($semuaSudahKembali) {
+                    $peminjaman->update([
+                        'status' => 'dikembalikan',
+                    ]);
+                }
+
+                return [
+                    'peminjaman' => $peminjaman,
+                    'pengembalian' => $pengembalian,
+                    'jumlah_diproses' => $jumlahUnitDiproses,
+                    'jumlah_sudah_kembali' => $jumlahSudahKembali,
+                    'total_unit' => $totalUnit,
+                    'selesai' => $semuaSudahKembali,
+                ];
+            });
+
+            // Notifikasi selesai hanya dikirim ketika seluruh unit kembali.
+            if ($hasil['selesai'] && $hasil['peminjaman']->user) {
+                $hasil['peminjaman']->user->notify(
+                    new PengembalianSelesaiNotification(
+                        $hasil['pengembalian']->load('petugas')
+                    )
+                );
+            }
+
+            // Pesan keberhasilan sesuai hasil pengembalian.
+            if ($hasil['selesai']) {
+                $pesanSukses = 'Pengembalian berhasil diselesaikan. '
+                    . $hasil['jumlah_diproses']
+                    . ' unit telah diproses dan seluruh unit sudah kembali.';
+            } else {
+                $sisaUnit = $hasil['total_unit']
+                    - $hasil['jumlah_sudah_kembali'];
+
+                $pesanSukses = 'Pengembalian parsial berhasil dicatat. '
+                    . $hasil['jumlah_diproses']
+                    . ' unit berhasil dikembalikan. '
+                    . $sisaUnit
+                    . ' unit masih belum dikembalikan.';
+            }
+
+            return redirect()
+                ->route('petugas.peminjaman.aktif')
+                ->with('success', $pesanSukses);
+
+        } catch (\Throwable $e) {
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'Gagal memproses pengembalian parsial: ' . $e->getMessage()
+                );
+        }
+    }
+
+    
+    /**
+     * Menampilkan daftar peminjaman aktif (termasuk yang parsial)
+     * 
+     * Ini berbeda dengan indexPengembalian yang hanya menampilkan
+     * peminjaman yang bisa diajukan pengembalian.
+     */
+    public function peminjamanAktif(Request $request)
+    {
+        $search = $request->input('search');
+        $kategoriId = $request->input('kategori_id');
+        $tanggalDari = $request->input('tanggal_dari');
+        $tanggalSampai = $request->input('tanggal_sampai');
+
+        $peminjamans = Peminjaman::with([
+            'user',
+            'detailPinjams.alatUnit.alat.kategori',
+            'pengembalian.detailPengembalians.detailPinjam.alatUnit.alat'
+        ])
+            ->whereIn('status', ['dipinjam', 'telat'])
+            // Tampilkan SEMUA peminjaman aktif, termasuk yang sudah ada pengembalian parsial
+            ->when($search, function ($query, $search) {
+                $query->whereHas('user', function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%");
+                });
+            })
+            ->when($kategoriId, function ($query, $kategoriId) {
+                $query->whereHas('detailPinjams.alatUnit.alat', function ($q) use ($kategoriId) {
+                    $q->where('kategori_id', $kategoriId);
+                });
+            })
+            ->when($tanggalDari, function ($query, $tanggalDari) {
+                $query->whereDate('tgl_pinjam', '>=', $tanggalDari);
+            })
+            ->when($tanggalSampai, function ($query, $tanggalSampai) {
+                $query->whereDate('tgl_pinjam', '<=', $tanggalSampai);
+            })
+            ->latest('tgl_pinjam')
+            ->paginate(10)
+            ->withQueryString();
+
+        // Daftar kategori untuk dropdown filter
+        $kategoris = Kategori::orderBy('nama_kategori')->get();
+
+        return view(
+            'petugas.peminjaman.aktif',
+            compact('peminjamans', 'search', 'kategoriId', 'tanggalDari', 'tanggalSampai', 'kategoris')
+        );
     }
 }
