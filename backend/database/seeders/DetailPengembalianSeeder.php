@@ -5,6 +5,8 @@ namespace Database\Seeders;
 use App\Models\DetailPengembalian;
 use App\Models\DetailPinjam;
 use App\Models\Pengembalian;
+use App\Models\Peminjaman;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use RuntimeException;
 
@@ -12,24 +14,30 @@ class DetailPengembalianSeeder extends Seeder
 {
     public function run(): void
     {
-        // Kondisi unit yang sudah dikembalikan.
-        // Urutan kondisi mengikuti urutan detail peminjaman.
+        // Data contoh kondisi unit yang dikembalikan.
+        // Jumlah kondisi mengikuti jumlah unit pada peminjaman.
         $details = [
             [
-                'peminjaman_id' => 1,
+                'email' => 'rian@gmail.com',
+                'tgl_pinjam' => '2026-06-01',
+                'tgl_kembali_plan' => '2026-06-04',
                 'kondisi' => [
                     'Baik',
                     'Baik',
                 ],
             ],
             [
-                'peminjaman_id' => 2,
+                'email' => 'siti@gmail.com',
+                'tgl_pinjam' => '2026-06-02',
+                'tgl_kembali_plan' => '2026-06-05',
                 'kondisi' => [
                     'Baik',
                 ],
             ],
             [
-                'peminjaman_id' => 3,
+                'email' => 'eka@gmail.com',
+                'tgl_pinjam' => '2026-06-03',
+                'tgl_kembali_plan' => '2026-06-06',
                 'kondisi' => [
                     'Rusak',
                 ],
@@ -37,29 +45,41 @@ class DetailPengembalianSeeder extends Seeder
         ];
 
         foreach ($details as $item) {
+            // Cari peminjam berdasarkan email.
+            $user = User::where('email', $item['email'])
+                ->firstOrFail();
+
+            // Cari peminjaman berdasarkan pengguna dan tanggal.
+            $peminjaman = Peminjaman::where('user_id', $user->id)
+                ->where('tgl_pinjam', $item['tgl_pinjam'])
+                ->where('tgl_kembali_plan', $item['tgl_kembali_plan'])
+                ->firstOrFail();
+
+            // Cari data pengembalian milik peminjaman tersebut.
             $pengembalian = Pengembalian::where(
                 'peminjaman_id',
-                $item['peminjaman_id']
+                $peminjaman->id
             )->firstOrFail();
 
-            // Ambil detail unit dari peminjaman yang sesuai.
+            // Ambil detail unit berdasarkan urutan ID.
             $detailPinjams = DetailPinjam::where(
                 'peminjaman_id',
-                $item['peminjaman_id']
+                $peminjaman->id
             )
                 ->orderBy('id')
                 ->get();
 
-            // Pastikan jumlah detail peminjaman mencukupi.
+            // Pastikan jumlah unit sesuai dengan data kondisi.
             if ($detailPinjams->count() < count($item['kondisi'])) {
                 throw new RuntimeException(
-                    "Detail peminjaman ID {$item['peminjaman_id']} tidak mencukupi."
+                    "Detail peminjaman {$peminjaman->id} tidak mencukupi."
                 );
             }
 
             foreach ($item['kondisi'] as $index => $kondisi) {
                 $detailPinjam = $detailPinjams->get($index);
 
+                // Pastikan unit alat tersedia pada detail peminjaman.
                 $unit = $detailPinjam->alatUnit;
 
                 if (!$unit) {
@@ -68,7 +88,8 @@ class DetailPengembalianSeeder extends Seeder
                     );
                 }
 
-                DetailPengembalian::updateOrCreate(
+                // Buat detail pengembalian hanya jika belum ada.
+                $detailPengembalian = DetailPengembalian::firstOrCreate(
                     [
                         'detail_pinjam_id' => $detailPinjam->id,
                     ],
@@ -79,12 +100,14 @@ class DetailPengembalianSeeder extends Seeder
                     ]
                 );
 
-                // Unit yang sudah kembali tidak lagi berstatus dipinjam.
-                $unit->update([
-                    'kondisi' => $kondisi === 'Rusak'
-                        ? 'rusak'
-                        : 'tersedia',
-                ]);
+                // Ubah kondisi unit hanya jika detail pengembalian baru dibuat.
+                if ($detailPengembalian->wasRecentlyCreated) {
+                    $unit->update([
+                        'kondisi' => $kondisi === 'Rusak'
+                            ? 'rusak'
+                            : 'tersedia',
+                    ]);
+                }
             }
         }
     }

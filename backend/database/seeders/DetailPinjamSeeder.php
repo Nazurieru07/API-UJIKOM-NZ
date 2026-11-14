@@ -7,6 +7,7 @@ use App\Models\AlatUnit;
 use App\Models\DetailPinjam;
 use App\Models\DetailPengembalian;
 use App\Models\Peminjaman;
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use RuntimeException;
 
@@ -14,40 +15,57 @@ class DetailPinjamSeeder extends Seeder
 {
     public function run(): void
     {
-        // Data peminjaman dan jumlah unit sesuai data contoh.
+        // Data contoh peminjaman menggunakan email dan tanggal,
+        // bukan ID peminjaman yang nilainya bisa berbeda.
         $details = [
             [
-                'peminjaman_id' => 1,
+                'email' => 'rian@gmail.com',
+                'tgl_pinjam' => '2026-06-01',
+                'tgl_kembali_plan' => '2026-06-04',
                 'nama_alat' => 'Router Mikrotik RB941-2nD',
                 'jumlah' => 2,
             ],
             [
-                'peminjaman_id' => 2,
+                'email' => 'siti@gmail.com',
+                'tgl_pinjam' => '2026-06-02',
+                'tgl_kembali_plan' => '2026-06-05',
                 'nama_alat' => 'Kamera DSLR Canon EOS 3000D',
                 'jumlah' => 1,
             ],
             [
-                'peminjaman_id' => 3,
+                'email' => 'eka@gmail.com',
+                'tgl_pinjam' => '2026-06-03',
+                'tgl_kembali_plan' => '2026-06-06',
                 'nama_alat' => 'Mini PC Intel NUC 11',
                 'jumlah' => 2,
             ],
             [
-                'peminjaman_id' => 4,
+                'email' => 'rian@gmail.com',
+                'tgl_pinjam' => '2026-06-08',
+                'tgl_kembali_plan' => '2026-06-11',
                 'nama_alat' => 'Tang Crimping RJ45/RJ11 Proskit',
                 'jumlah' => 2,
             ],
             [
-                'peminjaman_id' => 5,
+                'email' => 'siti@gmail.com',
+                'tgl_pinjam' => '2026-06-09',
+                'tgl_kembali_plan' => '2026-06-12',
                 'nama_alat' => 'Adapter HDMI to VGA dengan Audio',
                 'jumlah' => 3,
             ],
         ];
 
         foreach ($details as $item) {
-            $peminjaman = Peminjaman::findOrFail(
-                $item['peminjaman_id']
-            );
+            // Cari pengguna berdasarkan email.
+            $user = User::where('email', $item['email'])->firstOrFail();
 
+            // Cari peminjaman berdasarkan pengguna dan tanggalnya.
+            $peminjaman = Peminjaman::where('user_id', $user->id)
+                ->where('tgl_pinjam', $item['tgl_pinjam'])
+                ->where('tgl_kembali_plan', $item['tgl_kembali_plan'])
+                ->firstOrFail();
+
+            // Cari alat berdasarkan nama.
             $alat = Alat::where(
                 'nama_alat',
                 $item['nama_alat']
@@ -74,17 +92,29 @@ class DetailPinjamSeeder extends Seeder
 
             $kekurangan = $item['jumlah'] - $detailYangAda->count();
 
-            // Ambil hanya unit tersedia yang belum dialokasikan
-            // ke detail peminjaman mana pun.
+            // Ambil unit tersedia yang tidak sedang dialokasikan
+            // ke peminjaman yang belum selesai.
             $unitBaru = collect();
 
             if ($kekurangan > 0) {
                 $unitBaru = AlatUnit::where('alat_id', $alat->id)
                     ->where('kondisi', 'tersedia')
-                    ->whereNotIn(
-                        'id',
-                        DetailPinjam::select('alat_unit_id')
-                    )
+                    ->whereNotIn('id', function ($query) {
+                        $query->select('dp.alat_unit_id')
+                            ->from('detail_pinjam as dp')
+                            ->join('peminjaman as p', 'p.id', '=', 'dp.peminjaman_id')
+                            ->whereNotNull('dp.alat_unit_id')
+                            ->whereIn('p.status', [
+                                'diajukan',
+                                'dipinjam',
+                                'telat',
+                            ])
+                            ->whereNotExists(function ($subQuery) {
+                                $subQuery->selectRaw('1')
+                                    ->from('detail_pengembalian as dr')
+                                    ->whereColumn('dr.detail_pinjam_id', 'dp.id');
+                            });
+                    })
                     ->orderBy('serial_number')
                     ->limit($kekurangan)
                     ->get();
@@ -109,13 +139,14 @@ class DetailPinjamSeeder extends Seeder
                     'alat_unit_id' => $unit->id,
                 ]);
 
-                // Pengajuan yang masih menunggu tidak mengunci unit.
-                // Unit yang sudah dikembalikan tidak boleh diubah lagi.
+                // Periksa apakah unit sudah memiliki detail pengembalian.
                 $sudahDikembalikan = DetailPengembalian::where(
                     'detail_pinjam_id',
                     $detail->id
                 )->exists();
 
+                // Unit hanya diubah menjadi dipinjam jika status
+                // peminjamannya aktif dan belum dikembalikan.
                 if (
                     in_array($peminjaman->status, ['dipinjam', 'telat'], true)
                     && !$sudahDikembalikan

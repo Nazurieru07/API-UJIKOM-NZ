@@ -10,6 +10,7 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
+        // Data akun contoh untuk kebutuhan pengujian aplikasi.
         $users = [
             [
                 'name' => 'Bagus Karim',
@@ -69,7 +70,9 @@ class UserSeeder extends Seeder
         ];
 
         foreach ($users as $user) {
-            User::updateOrCreate(
+            // Buat akun hanya jika email belum terdaftar.
+            // Data akun yang sudah ada tidak akan ditimpa.
+            User::firstOrCreate(
                 ['email' => $user['email']],
                 $user
             );

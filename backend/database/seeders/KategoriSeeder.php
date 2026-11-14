@@ -18,7 +18,7 @@ class KategoriSeeder extends Seeder
         ];
 
         foreach ($kategori as $kat) {
-            Kategori::updateOrCreate(
+            Kategori::firstOrCreate(
                 ['nama_kategori' => $kat['nama_kategori']],
                 $kat
             );
